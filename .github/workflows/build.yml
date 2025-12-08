@@ -1,0 +1,147 @@
+name: Build Plugin
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allows manual triggering
+
+env:
+  BUILD_TYPE: Release
+  PLUGIN_NAME: "3 Voice Unison Mod"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Clone JUCE
+      run: |
+        git clone --depth 1 https://github.com/juce-framework/JUCE.git JUCE
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+    - name: Build Standalone
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ThreeVoices_Standalone
+
+    - name: Build VST3
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ThreeVoices_VST3
+
+    - name: Prepare Windows Artifacts
+      run: |
+        mkdir -p artifacts/Windows
+        cp -r "build/ThreeVoices_artefacts/${{ env.BUILD_TYPE }}/Standalone" "artifacts/Windows/"
+        cp -r "build/ThreeVoices_artefacts/${{ env.BUILD_TYPE }}/VST3" "artifacts/Windows/"
+      shell: bash
+
+    - name: Upload Windows Standalone
+      uses: actions/upload-artifact@v4
+      with:
+        name: Windows-Standalone
+        path: artifacts/Windows/Standalone/
+        retention-days: 30
+
+    - name: Upload Windows VST3
+      uses: actions/upload-artifact@v4
+      with:
+        name: Windows-VST3
+        path: artifacts/Windows/VST3/
+        retention-days: 30
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Clone JUCE
+      run: |
+        git clone --depth 1 https://github.com/juce-framework/JUCE.git JUCE
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+
+    - name: Build Standalone
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ThreeVoices_Standalone
+
+    - name: Build VST3
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ThreeVoices_VST3
+
+    - name: Build AU
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ThreeVoices_AU
+
+    - name: Prepare macOS Artifacts
+      run: |
+        mkdir -p artifacts/macOS
+        cp -r "build/ThreeVoices_artefacts/${{ env.BUILD_TYPE }}/Standalone" "artifacts/macOS/"
+        cp -r "build/ThreeVoices_artefacts/${{ env.BUILD_TYPE }}/VST3" "artifacts/macOS/"
+        cp -r "build/ThreeVoices_artefacts/${{ env.BUILD_TYPE }}/AU" "artifacts/macOS/"
+
+    - name: Upload macOS Standalone
+      uses: actions/upload-artifact@v4
+      with:
+        name: macOS-Standalone
+        path: artifacts/macOS/Standalone/
+        retention-days: 30
+
+    - name: Upload macOS VST3
+      uses: actions/upload-artifact@v4
+      with:
+        name: macOS-VST3
+        path: artifacts/macOS/VST3/
+        retention-days: 30
+
+    - name: Upload macOS AU
+      uses: actions/upload-artifact@v4
+      with:
+        name: macOS-AU
+        path: artifacts/macOS/AU/
+        retention-days: 30
+
+  # Optional: Create a combined release artifact
+  package-release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts
+
+    - name: Create release package
+      run: |
+        mkdir -p "release/${{ env.PLUGIN_NAME }}"
+
+        # Windows
+        mkdir -p "release/${{ env.PLUGIN_NAME }}/Windows"
+        cp -r release-artifacts/Windows-Standalone/* "release/${{ env.PLUGIN_NAME }}/Windows/" 2>/dev/null || true
+        cp -r release-artifacts/Windows-VST3/* "release/${{ env.PLUGIN_NAME }}/Windows/" 2>/dev/null || true
+
+        # macOS
+        mkdir -p "release/${{ env.PLUGIN_NAME }}/macOS"
+        cp -r release-artifacts/macOS-Standalone/* "release/${{ env.PLUGIN_NAME }}/macOS/" 2>/dev/null || true
+        cp -r release-artifacts/macOS-VST3/* "release/${{ env.PLUGIN_NAME }}/macOS/" 2>/dev/null || true
+        cp -r release-artifacts/macOS-AU/* "release/${{ env.PLUGIN_NAME }}/macOS/" 2>/dev/null || true
+
+        # Create zip
+        cd release
+        zip -r "../${{ env.PLUGIN_NAME }}-all-platforms.zip" "${{ env.PLUGIN_NAME }}"
+
+    - name: Upload combined release
+      uses: actions/upload-artifact@v4
+      with:
+        name: All-Platforms-Release
+        path: "${{ env.PLUGIN_NAME }}-all-platforms.zip"
+        retention-days: 90

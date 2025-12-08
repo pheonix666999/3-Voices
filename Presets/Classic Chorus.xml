@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Parameters>
+  <PARAM id="inputGain" value="0.0"/>
+  <PARAM id="outputGain" value="0.0"/>
+  <PARAM id="mix" value="50.0"/>
+  <PARAM id="width" value="50.0"/>
+
+  <PARAM id="voice1On" value="1"/>
+  <PARAM id="voice1Speed" value="0.8"/>
+  <PARAM id="voice1DelayTime" value="12.0"/>
+  <PARAM id="voice1Depth" value="40.0"/>
+  <PARAM id="voice1Distortion" value="0.0"/>
+  <PARAM id="voice1Tube" value="0"/>
+  <PARAM id="voice1Bit" value="0"/>
+
+  <PARAM id="voice2On" value="1"/>
+  <PARAM id="voice2Speed" value="1.2"/>
+  <PARAM id="voice2DelayTime" value="18.0"/>
+  <PARAM id="voice2Depth" value="35.0"/>
+  <PARAM id="voice2Distortion" value="0.0"/>
+  <PARAM id="voice2Tube" value="0"/>
+  <PARAM id="voice2Bit" value="0"/>
+
+  <PARAM id="voice3On" value="0"/>
+  <PARAM id="voice3Speed" value="1.0"/>
+  <PARAM id="voice3DelayTime" value="10.0"/>
+  <PARAM id="voice3Depth" value="50.0"/>
+  <PARAM id="voice3Distortion" value="0.0"/>
+  <PARAM id="voice3Tube" value="0"/>
+  <PARAM id="voice3Bit" value="0"/>
+</Parameters>

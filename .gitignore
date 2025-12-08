@@ -1,0 +1,51 @@
+# Build directories
+build/
+Builds/
+cmake-build-*/
+
+# JUCE framework (cloned during CI)
+JUCE/
+
+# IDE files
+.vs/
+.vscode/
+*.vcxproj.user
+*.suo
+*.user
+*.sln.docstates
+.idea/
+*.xcworkspace
+xcuserdata/
+
+# Compiled files
+*.o
+*.obj
+*.lib
+*.a
+*.dll
+*.so
+*.dylib
+*.exe
+*.vst3
+*.component
+*.app
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.bak
+*~
+
+# Claude Code settings (optional - remove if you want to keep)
+.claude/
