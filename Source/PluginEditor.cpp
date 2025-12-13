@@ -52,7 +52,7 @@ ThreeVoicesAudioProcessorEditor::ThreeVoicesAudioProcessorEditor(ThreeVoicesAudi
 
         // Delay Time knob
         voiceControls[i].delayTimeKnob = std::make_unique<CustomKnob>();
-        voiceControls[i].delayTimeKnob->setRange(1.0, 50.0, 0.1);
+        voiceControls[i].delayTimeKnob->setRange(0.0, 150.0, 0.1);
         addAndMakeVisible(*voiceControls[i].delayTimeKnob);
         voiceControls[i].delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             audioProcessor.getAPVTS(), prefix + "DelayTime", *voiceControls[i].delayTimeKnob);
@@ -86,11 +86,34 @@ ThreeVoicesAudioProcessorEditor::ThreeVoicesAudioProcessorEditor(ThreeVoicesAudi
 
     // Match the mockup dimensions (approximately)
     setSize(950, 550);
+
+    // Start timer to update width slider state based on active voices
+    startTimer(50); // Check every 50ms
 }
 
 ThreeVoicesAudioProcessorEditor::~ThreeVoicesAudioProcessorEditor()
 {
+    stopTimer();
     setLookAndFeel(nullptr);
+}
+
+void ThreeVoicesAudioProcessorEditor::timerCallback()
+{
+    // Count active voices
+    int activeVoiceCount = 0;
+    for (int i = 0; i < 3; ++i)
+    {
+        juce::String prefix = "voice" + juce::String(i + 1);
+        bool voiceOn = audioProcessor.getAPVTS().getRawParameterValue(prefix + "On")->load() > 0.5f;
+        if (voiceOn) activeVoiceCount++;
+    }
+
+    // Enable/disable width slider based on active voice count
+    bool shouldEnable = activeVoiceCount >= 2;
+    widthSlider.setEnabled(shouldEnable);
+    
+    // Visually indicate disabled state
+    widthSlider.setAlpha(shouldEnable ? 1.0f : 0.5f);
 }
 
 void ThreeVoicesAudioProcessorEditor::paint(juce::Graphics& g)

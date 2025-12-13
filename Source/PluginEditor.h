@@ -190,7 +190,7 @@ public:
 };
 
 //==============================================================================
-class ThreeVoicesAudioProcessorEditor : public juce::AudioProcessorEditor
+class ThreeVoicesAudioProcessorEditor : public juce::AudioProcessorEditor, public juce::Timer
 {
 public:
     explicit ThreeVoicesAudioProcessorEditor(ThreeVoicesAudioProcessor&);
@@ -198,6 +198,7 @@ public:
 
     void paint(juce::Graphics&) override;
     void resized() override;
+    void timerCallback() override;
 
 private:
     ThreeVoicesAudioProcessor& audioProcessor;
