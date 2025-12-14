@@ -60,7 +60,7 @@ public:
 
         // Label text
         g.setColour(juce::Colours::white);
-        g.setFont(juce::Font(24.0f, juce::Font::bold));
+        g.setFont(juce::Font(18.0f, juce::Font::bold));
         g.drawText(label, bounds, juce::Justification::centred);
     }
 
@@ -104,7 +104,7 @@ public:
 
         // Label text
         g.setColour(juce::Colours::white);
-        g.setFont(juce::Font(12.0f));
+        g.setFont(juce::Font(11.0f));
         g.drawText(label, bounds, juce::Justification::centred);
     }
 

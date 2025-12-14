@@ -84,8 +84,8 @@ ThreeVoicesAudioProcessorEditor::ThreeVoicesAudioProcessorEditor(ThreeVoicesAudi
             audioProcessor.getAPVTS(), prefix + "Bit", *voiceControls[i].bitButton);
     }
 
-    // Match the mockup dimensions (approximately)
-    setSize(950, 550);
+    // Compact dimensions
+    setSize(750, 420);
 
     // Start timer to update width slider state based on active voices
     startTimer(50); // Check every 50ms
@@ -124,53 +124,53 @@ void ThreeVoicesAudioProcessorEditor::paint(juce::Graphics& g)
     g.setColour(juce::Colours::white);
 
     // Draw column labels at the top
-    g.setFont(juce::Font(16.0f));
-    g.drawText("Voices", 100, 55, 80, 25, juce::Justification::centred);
-    g.drawText("Speed", 220, 55, 80, 25, juce::Justification::centred);
-    g.drawText("Delay Time", 320, 55, 100, 25, juce::Justification::centred);
-    g.drawText("Depth", 450, 55, 80, 25, juce::Justification::centred);
+    g.setFont(juce::Font(14.0f));
+    g.drawText("Voices", 75, 40, 60, 20, juce::Justification::centred);
+    g.drawText("Speed", 170, 40, 60, 20, juce::Justification::centred);
+    g.drawText("Delay Time", 250, 40, 80, 20, juce::Justification::centred);
+    g.drawText("Depth", 350, 40, 60, 20, juce::Justification::centred);
 
     // Draw title on the right side
-    g.setFont(juce::Font(28.0f, juce::Font::bold));
-    g.drawText("3 Voice", 720, 170, 180, 40, juce::Justification::centred);
-    g.drawText("Unison Mod", 720, 210, 180, 40, juce::Justification::centred);
+    g.setFont(juce::Font(22.0f, juce::Font::bold));
+    g.drawText("3 Voice", 570, 130, 140, 30, juce::Justification::centred);
+    g.drawText("Unison Mod", 570, 160, 140, 30, juce::Justification::centred);
 
     // Draw Width and Mix labels at the bottom
-    g.setFont(juce::Font(16.0f));
-    g.drawText("Width", 630, 470, 60, 25, juce::Justification::centred);
-    g.drawText("Mix", 820, 470, 60, 25, juce::Justification::centred);
+    g.setFont(juce::Font(14.0f));
+    g.drawText("Width", 500, 360, 50, 20, juce::Justification::centred);
+    g.drawText("Mix", 640, 360, 50, 20, juce::Justification::centred);
 }
 
 void ThreeVoicesAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds();
 
-    // Layout constants matching the mockup
-    const int leftMargin = 40;
-    const int rightMargin = 40;
-    const int faderWidth = 16;
-    const int faderHeight = 450;
-    const int knobSize = 75;
-    const int voiceButtonWidth = 75;
-    const int voiceButtonHeight = 100;
-    const int voiceRowHeight = 135;
-    const int voiceStartY = 90;
-    const int distFaderHeight = 100;
-    const int distButtonWidth = 55;
-    const int distButtonHeight = 28;
+    // Compact layout constants
+    const int leftMargin = 30;
+    const int rightMargin = 30;
+    const int faderWidth = 14;
+    const int faderHeight = 340;
+    const int knobSize = 60;
+    const int voiceButtonWidth = 60;
+    const int voiceButtonHeight = 75;
+    const int voiceRowHeight = 100;
+    const int voiceStartY = 70;
+    const int distFaderHeight = 75;
+    const int distButtonWidth = 45;
+    const int distButtonHeight = 22;
 
-    // Input gain fader (left side with cap lines like in mockup)
-    inputGainSlider.setBounds(leftMargin, 50, faderWidth, faderHeight);
+    // Input gain fader (left side)
+    inputGainSlider.setBounds(leftMargin, 40, faderWidth, faderHeight);
 
     // Output gain fader (right side)
-    outputGainSlider.setBounds(bounds.getWidth() - rightMargin - faderWidth, 50, faderWidth, faderHeight);
+    outputGainSlider.setBounds(bounds.getWidth() - rightMargin - faderWidth, 40, faderWidth, faderHeight);
 
     // Voice rows positioning
-    int voiceButtonX = 95;
-    int knobStartX = 185;
-    int knobSpacing = 110;
-    int distFaderX = 530;
-    int distButtonX = 570;
+    int voiceButtonX = 70;
+    int knobStartX = 145;
+    int knobSpacing = 85;
+    int distFaderX = 420;
+    int distButtonX = 455;
 
     for (int i = 0; i < 3; ++i)
     {
@@ -180,21 +180,21 @@ void ThreeVoicesAudioProcessorEditor::resized()
         voiceControls[i].voiceButton->setBounds(voiceButtonX, rowY, voiceButtonWidth, voiceButtonHeight);
 
         // Three knobs in a row
-        voiceControls[i].speedKnob->setBounds(knobStartX, rowY + 15, knobSize, knobSize);
-        voiceControls[i].delayTimeKnob->setBounds(knobStartX + knobSpacing, rowY + 15, knobSize, knobSize);
-        voiceControls[i].depthKnob->setBounds(knobStartX + knobSpacing * 2, rowY + 15, knobSize, knobSize);
+        voiceControls[i].speedKnob->setBounds(knobStartX, rowY + 8, knobSize, knobSize);
+        voiceControls[i].delayTimeKnob->setBounds(knobStartX + knobSpacing, rowY + 8, knobSize, knobSize);
+        voiceControls[i].depthKnob->setBounds(knobStartX + knobSpacing * 2, rowY + 8, knobSize, knobSize);
 
         // Distortion fader (vertical fader with T-shaped handle)
         voiceControls[i].distortionSlider->setBounds(distFaderX, rowY + 5, faderWidth, distFaderHeight);
 
         // Tube and Bit buttons stacked vertically
-        voiceControls[i].tubeButton->setBounds(distButtonX, rowY + 10, distButtonWidth, distButtonHeight);
-        voiceControls[i].bitButton->setBounds(distButtonX, rowY + 45, distButtonWidth, distButtonHeight);
+        voiceControls[i].tubeButton->setBounds(distButtonX, rowY + 8, distButtonWidth, distButtonHeight);
+        voiceControls[i].bitButton->setBounds(distButtonX, rowY + 35, distButtonWidth, distButtonHeight);
     }
 
     // Width slider at the bottom
-    widthSlider.setBounds(640, 370, faderWidth, 100);
+    widthSlider.setBounds(510, 280, faderWidth, 75);
 
-    // Mix knob at the bottom right (larger knob)
-    mixKnob.setBounds(785, 360, 90, 90);
+    // Mix knob at the bottom right
+    mixKnob.setBounds(620, 270, 70, 70);
 }
