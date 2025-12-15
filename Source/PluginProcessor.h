@@ -49,14 +49,22 @@ private:
         float phase = 0.0f;
         float phaseOffset = 0.0f; // For voice character differences
         float speedMultiplier = 1.0f; // For voice character differences
-        juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> delayLine{ 28800 }; // Max 150ms at 192kHz (28800 samples max needed)
+        // Use Lagrange interpolation for smooth delay changes (click-free)
+        juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Lagrange3rd> delayLine{ 28800 }; // Max 150ms at 192kHz
         juce::dsp::IIR::Filter<float> filter; // For subtle tone differences
+        // Smoothed delay time in samples (per-voice, updated per-sample)
+        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedDelaySamples;
 
         void prepare(const juce::dsp::ProcessSpec& spec, int voiceIndex)
         {
-            // Set max delay to 150ms at current sample rate
-            delayLine.setMaximumDelayInSamples(static_cast<int>(spec.sampleRate * 0.15));
+            // Set max delay to 150ms at current sample rate (+ safety margin)
+            int maxDelaySamples = static_cast<int>(spec.sampleRate * 0.15f) + 64;
+            delayLine.setMaximumDelayInSamples(maxDelaySamples);
             delayLine.prepare(spec);
+            
+            // Initialize smoothed delay time (10ms smoothing for delay changes)
+            smoothedDelaySamples.reset(spec.sampleRate, 0.01);
+            smoothedDelaySamples.setCurrentAndTargetValue(0.0f);
 
             // Set up subtle character differences for each voice
             // Voice I: slight high shelf boost
@@ -92,26 +100,41 @@ private:
             filter.prepare(spec);
         }
 
-        void reset()
+        void reset(double sampleRate)
         {
             phase = phaseOffset; // Start at phase offset
             delayLine.reset();
             filter.reset();
+            smoothedDelaySamples.reset(sampleRate, 0.01); // 10ms smoothing for delay changes
+            smoothedDelaySamples.setCurrentAndTargetValue(0.0f);
         }
     };
 
     VoiceProcessor voices[3];
     double currentSampleRate = 44100.0;
 
-    // Parameter smoothing
-    juce::SmoothedValue<float> smoothedInputGain;
-    juce::SmoothedValue<float> smoothedOutputGain;
-    juce::SmoothedValue<float> smoothedMix;
-    juce::SmoothedValue<float> smoothedWidth;
+    // Parameter smoothing - all continuous parameters must be smoothed
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedInputGain;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedOutputGain;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedMix;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedWidth;
+    
+    // Per-voice parameter smoothers (3 voices)
+    struct VoiceSmoothers
+    {
+        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> speed;
+        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> delayTime; // in samples
+        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> depth;
+        juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> distortion;
+    };
+    VoiceSmoothers voiceSmoothers[3];
 
     // Distortion processing
     float processTubeDistortion(float sample, float drive);
     float processBitCrusher(float sample, float drive);
+    
+    // Constant-power panning helper (smooth, click-free panning)
+    void applyConstantPowerPan(float& left, float& right, float panPosition);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ThreeVoicesAudioProcessor)
 };

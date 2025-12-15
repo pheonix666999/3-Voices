@@ -159,20 +159,45 @@ void ThreeVoicesAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     for (int i = 0; i < 3; ++i)
     {
         voices[i].prepare(spec, i);
-        voices[i].reset();
+        voices[i].reset(sampleRate);
     }
 
-    // Initialize parameter smoothing (20ms smoothing time)
-    smoothedInputGain.reset(sampleRate, 0.02);
-    smoothedOutputGain.reset(sampleRate, 0.02);
-    smoothedMix.reset(sampleRate, 0.02);
-    smoothedWidth.reset(sampleRate, 0.02);
+    // Initialize parameter smoothing (20ms smoothing time for most, 10ms for delay)
+    const float smoothingTime = 0.02f; // 20ms for most parameters
+    smoothedInputGain.reset(sampleRate, smoothingTime);
+    smoothedOutputGain.reset(sampleRate, smoothingTime);
+    smoothedMix.reset(sampleRate, smoothingTime);
+    smoothedWidth.reset(sampleRate, smoothingTime);
+
+    // Initialize per-voice parameter smoothers
+    for (int i = 0; i < 3; ++i)
+    {
+        voiceSmoothers[i].speed.reset(sampleRate, smoothingTime);
+        voiceSmoothers[i].delayTime.reset(sampleRate, 0.01f); // 10ms for delay (faster response)
+        voiceSmoothers[i].depth.reset(sampleRate, smoothingTime);
+        voiceSmoothers[i].distortion.reset(sampleRate, smoothingTime);
+    }
 
     // Set initial values
     smoothedInputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(apvts.getRawParameterValue("inputGain")->load()));
     smoothedOutputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(apvts.getRawParameterValue("outputGain")->load()));
     smoothedMix.setCurrentAndTargetValue(apvts.getRawParameterValue("mix")->load() * 0.01f);
     smoothedWidth.setCurrentAndTargetValue(apvts.getRawParameterValue("width")->load() * 0.01f);
+    
+    // Set initial voice parameter values
+    for (int i = 0; i < 3; ++i)
+    {
+        juce::String prefix = "voice" + juce::String(i + 1);
+        float speed = apvts.getRawParameterValue(prefix + "Speed")->load();
+        float delayMs = apvts.getRawParameterValue(prefix + "DelayTime")->load();
+        float depth = apvts.getRawParameterValue(prefix + "Depth")->load() * 0.01f;
+        float distortion = apvts.getRawParameterValue(prefix + "Distortion")->load();
+        
+        voiceSmoothers[i].speed.setCurrentAndTargetValue(speed);
+        voiceSmoothers[i].delayTime.setCurrentAndTargetValue(delayMs * static_cast<float>(sampleRate) / 1000.0f);
+        voiceSmoothers[i].depth.setCurrentAndTargetValue(depth);
+        voiceSmoothers[i].distortion.setCurrentAndTargetValue(distortion);
+    }
 }
 
 void ThreeVoicesAudioProcessor::releaseResources()
@@ -251,11 +276,19 @@ float ThreeVoicesAudioProcessor::processBitCrusher(float sample, float drive)
     // Quantize the signal
     float quantized = std::round(preQuant * levels) / levels;
     
-    // Add subtle filtering to match reference tone - gentle low-pass character
-    // This gives it that characteristic bit-crushed tone without harshness
-    float filterAmount = amount * 0.25f; // Subtle filtering that increases with drive
-    // Simple one-pole low-pass-like response for smoother tone
-    float filtered = quantized * (1.0f - filterAmount) + quantized * 0.65f * filterAmount;
+    // Improved filtering: gentle low-pass to reduce aliasing and thin/airy character
+    // Use a more effective low-pass response that increases with drive
+    float filterAmount = amount * 0.35f; // More filtering for fuller tone
+    // Apply gentle low-pass filtering (reduces high-frequency aliasing artifacts)
+    float filtered = quantized * (1.0f - filterAmount) + quantized * 0.6f * filterAmount;
+    
+    // Additional gentle high-frequency rolloff for fuller, less thin sound
+    // This helps reduce the "airy" aliasing artifacts
+    if (amount > 0.3f)
+    {
+        float hfRolloff = (amount - 0.3f) * 0.2f; // Additional rolloff above 30%
+        filtered *= (1.0f - hfRolloff * 0.15f); // Subtle high-frequency attenuation
+    }
     
     // Auto-gain compensation: bit crushing can reduce perceived loudness
     // Compensate to keep level consistent, allow slight increase at max (similar to tube)
@@ -272,31 +305,52 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
+    const int numSamples = buffer.getNumSamples();
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear(i, 0, buffer.getNumSamples());
+        buffer.clear(i, 0, numSamples);
 
-    // Update smoothed parameter targets
+    // Update smoothed parameter targets ONCE per block (no allocations, no String operations)
     smoothedInputGain.setTargetValue(juce::Decibels::decibelsToGain(apvts.getRawParameterValue("inputGain")->load()));
     smoothedOutputGain.setTargetValue(juce::Decibels::decibelsToGain(apvts.getRawParameterValue("outputGain")->load()));
     smoothedMix.setTargetValue(apvts.getRawParameterValue("mix")->load() * 0.01f);
     smoothedWidth.setTargetValue(apvts.getRawParameterValue("width")->load() * 0.01f);
 
-    // Voice parameters (these change less frequently, so we read once per block)
+    // Read voice parameters ONCE per block (no String allocations - use direct parameter IDs)
     bool voiceOn[3];
-    float voiceSpeed[3], voiceDelayTime[3], voiceDepth[3], voiceDistortion[3];
     bool voiceTube[3], voiceBit[3];
+    
+    // Use direct parameter access to avoid String allocations
+    voiceOn[0] = apvts.getRawParameterValue("voice1On")->load() > 0.5f;
+    voiceOn[1] = apvts.getRawParameterValue("voice2On")->load() > 0.5f;
+    voiceOn[2] = apvts.getRawParameterValue("voice3On")->load() > 0.5f;
+    
+    voiceTube[0] = apvts.getRawParameterValue("voice1Tube")->load() > 0.5f;
+    voiceTube[1] = apvts.getRawParameterValue("voice2Tube")->load() > 0.5f;
+    voiceTube[2] = apvts.getRawParameterValue("voice3Tube")->load() > 0.5f;
+    
+    voiceBit[0] = apvts.getRawParameterValue("voice1Bit")->load() > 0.5f;
+    voiceBit[1] = apvts.getRawParameterValue("voice2Bit")->load() > 0.5f;
+    voiceBit[2] = apvts.getRawParameterValue("voice3Bit")->load() > 0.5f;
 
+    // Update smoothed voice parameter targets
     for (int i = 0; i < 3; ++i)
     {
-        juce::String prefix = "voice" + juce::String(i + 1);
-        voiceOn[i] = apvts.getRawParameterValue(prefix + "On")->load() > 0.5f;
-        voiceSpeed[i] = apvts.getRawParameterValue(prefix + "Speed")->load();
-        voiceDelayTime[i] = apvts.getRawParameterValue(prefix + "DelayTime")->load();
-        voiceDepth[i] = apvts.getRawParameterValue(prefix + "Depth")->load() * 0.01f;
-        voiceDistortion[i] = apvts.getRawParameterValue(prefix + "Distortion")->load();
-        voiceTube[i] = apvts.getRawParameterValue(prefix + "Tube")->load() > 0.5f;
-        voiceBit[i] = apvts.getRawParameterValue(prefix + "Bit")->load() > 0.5f;
+        const char* speedParam = (i == 0) ? "voice1Speed" : (i == 1) ? "voice2Speed" : "voice3Speed";
+        const char* delayParam = (i == 0) ? "voice1DelayTime" : (i == 1) ? "voice2DelayTime" : "voice3DelayTime";
+        const char* depthParam = (i == 0) ? "voice1Depth" : (i == 1) ? "voice2Depth" : "voice3Depth";
+        const char* distParam = (i == 0) ? "voice1Distortion" : (i == 1) ? "voice2Distortion" : "voice3Distortion";
+        
+        float speed = apvts.getRawParameterValue(speedParam)->load();
+        float delayMs = apvts.getRawParameterValue(delayParam)->load();
+        float depth = apvts.getRawParameterValue(depthParam)->load() * 0.01f;
+        float distortion = apvts.getRawParameterValue(distParam)->load();
+        
+        voiceSmoothers[i].speed.setTargetValue(speed);
+        // Convert delay time from ms to samples for smoothing
+        voiceSmoothers[i].delayTime.setTargetValue(delayMs * static_cast<float>(currentSampleRate) / 1000.0f);
+        voiceSmoothers[i].depth.setTargetValue(depth);
+        voiceSmoothers[i].distortion.setTargetValue(distortion);
     }
 
     // Count active voices for panning logic
@@ -306,12 +360,15 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         if (voiceOn[i]) activeVoiceCount++;
     }
 
-    // Store dry signal before processing
-    juce::AudioBuffer<float> dryBuffer;
-    dryBuffer.makeCopyOf(buffer);
+    // NO ALLOCATIONS: Use buffer directly, process in-place where possible
+    // Get pointers to input channels (no copy needed)
+    const float* inputL = buffer.getReadPointer(0);
+    const float* inputR = totalNumInputChannels > 1 ? buffer.getReadPointer(1) : inputL;
+    float* outputL = buffer.getWritePointer(0);
+    float* outputR = totalNumOutputChannels > 1 ? buffer.getWritePointer(1) : outputL;
 
-    // Process each sample
-    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+    // Process each sample - NO ALLOCATIONS, all parameters smoothed per-sample
+    for (int sample = 0; sample < numSamples; ++sample)
     {
         // Get smoothed parameter values for this sample
         float inputGain = smoothedInputGain.getNextValue();
@@ -322,9 +379,9 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         // Width only works with 2+ voices, disable if only 1 voice
         if (activeVoiceCount < 2) width = 0.0f;
 
-        // Get input samples with input gain applied
-        float inputL = dryBuffer.getSample(0, sample) * inputGain;
-        float inputR = dryBuffer.getNumChannels() > 1 ? dryBuffer.getSample(1, sample) * inputGain : inputL;
+        // Get input samples with input gain applied (no buffer copy - direct access)
+        float inputL_sample = inputL[sample] * inputGain;
+        float inputR_sample = inputR[sample] * inputGain;
 
         float wetL = 0.0f;
         float wetR = 0.0f;
@@ -333,159 +390,108 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         {
             if (!voiceOn[v]) continue;
 
-            // LFO for chorus/modulation effect (with voice character speed multiplier)
-            float effectiveSpeed = voiceSpeed[v] * voices[v].speedMultiplier;
-            float lfo = std::sin(voices[v].phase * juce::MathConstants<float>::twoPi);
-            voices[v].phase += effectiveSpeed / static_cast<float>(currentSampleRate);
-            if (voices[v].phase >= 1.0f) voices[v].phase -= 1.0f;
+            // Get smoothed voice parameters for this sample
+            float smoothedSpeed = voiceSmoothers[v].speed.getNextValue();
+            float smoothedBaseDelaySamples = voiceSmoothers[v].delayTime.getNextValue();
+            float smoothedDepth = voiceSmoothers[v].depth.getNextValue();
+            float smoothedDistortion = voiceSmoothers[v].distortion.getNextValue();
+
+            // LFO for chorus/modulation effect (Speed is INDEPENDENT of delay time)
+            // Speed controls LFO rate only - delay time is controlled by Delay Time knob
+            float effectiveSpeed = smoothedSpeed * voices[v].speedMultiplier;
+            float lfo = 0.0f;
+            
+            // Only calculate LFO if Speed > 0 (Speed=0 means no modulation, but delay still works)
+            if (effectiveSpeed > 0.001f)
+            {
+                lfo = std::sin(voices[v].phase * juce::MathConstants<float>::twoPi);
+                voices[v].phase += effectiveSpeed / static_cast<float>(currentSampleRate);
+                if (voices[v].phase >= 1.0f) voices[v].phase -= 1.0f;
+            }
+            // If Speed = 0, lfo remains 0.0f, so no modulation but delay still works
 
             // Calculate delay time: baseDelay is the actual delay offset (0-150ms)
-            // Depth modulates around the base delay (modulation depth in percentage)
-            float baseDelaySamples = voiceDelayTime[v] * static_cast<float>(currentSampleRate) / 1000.0f;
+            // Depth modulates around the base delay ONLY if Speed > 0
+            // If Speed = 0, delay time = baseDelay exactly (no modulation)
+            float modAmountSamples = 0.0f;
+            if (effectiveSpeed > 0.001f && smoothedDepth > 0.001f)
+            {
+                // Modulation amount: up to ±50% of base delay, or ±5ms minimum (whichever is larger)
+                const float minModSamples = smoothedDepth * (0.005f * static_cast<float>(currentSampleRate)); // 5ms minimum scaled by depth
+                modAmountSamples = juce::jmax(smoothedBaseDelaySamples * 0.5f * smoothedDepth, minModSamples);
+            }
             
-            // Modulation amount: up to ±50% of base delay, or ±5ms minimum (whichever is larger)
-            float modAmountPercent = voiceDepth[v]; // 0.0 to 1.0
-            float modAmountMs = juce::jmax(baseDelaySamples * 0.5f * modAmountPercent, 
-                                           5.0f * modAmountPercent);
-            float modAmountSamples = modAmountMs * static_cast<float>(currentSampleRate) / 1000.0f;
-            
-            // Final delay time: base delay ± modulation
-            float delayTimeSamples = baseDelaySamples + lfo * modAmountSamples;
+            // Final delay time: base delay ± modulation (modulation only if Speed > 0)
+            float delayTimeSamples = smoothedBaseDelaySamples + lfo * modAmountSamples;
 
             // Clamp delay time to valid range (0-150ms)
-            float maxDelay = static_cast<float>(currentSampleRate) * 0.15f - 1.0f;
+            float maxDelay = static_cast<float>(currentSampleRate) * 0.15f;
             delayTimeSamples = juce::jlimit(0.0f, maxDelay, delayTimeSamples);
+            
+            // Update smoothed delay time for delay line (smooth delay changes)
+            voices[v].smoothedDelaySamples.setTargetValue(delayTimeSamples);
+            float finalDelaySamples = voices[v].smoothedDelaySamples.getNextValue();
 
             // Push input to delay line
-            voices[v].delayLine.pushSample(0, inputL);
-            voices[v].delayLine.pushSample(1, inputR);
+            voices[v].delayLine.pushSample(0, inputL_sample);
+            voices[v].delayLine.pushSample(1, inputR_sample);
 
-            // Pop delayed samples (handle 0 delay case)
+            // Pop delayed samples using smoothed delay time (Lagrange interpolation handles smooth changes)
             float delayedL, delayedR;
-            if (delayTimeSamples < 0.1f)
+            if (finalDelaySamples < 0.1f)
             {
                 // At 0ms delay, use current input (no delay)
-                delayedL = inputL;
-                delayedR = inputR;
+                delayedL = inputL_sample;
+                delayedR = inputR_sample;
             }
             else
             {
-                delayedL = voices[v].delayLine.popSample(0, delayTimeSamples);
-                delayedR = voices[v].delayLine.popSample(1, delayTimeSamples);
+                // Use delay line with smoothed delay time (Lagrange interpolation = click-free)
+                delayedL = voices[v].delayLine.popSample(0, finalDelaySamples);
+                delayedR = voices[v].delayLine.popSample(1, finalDelaySamples);
             }
 
             // Apply voice character filtering (subtle tone differences)
             delayedL = voices[v].filter.processSample(delayedL);
             delayedR = voices[v].filter.processSample(delayedR);
 
-            // Apply distortion if either tube or bit is enabled
+            // Apply distortion if either tube or bit is enabled (use smoothed distortion)
             if (voiceTube[v] || voiceBit[v])
             {
                 if (voiceTube[v])
                 {
-                    delayedL = processTubeDistortion(delayedL, voiceDistortion[v]);
-                    delayedR = processTubeDistortion(delayedR, voiceDistortion[v]);
+                    delayedL = processTubeDistortion(delayedL, smoothedDistortion);
+                    delayedR = processTubeDistortion(delayedR, smoothedDistortion);
                 }
                 if (voiceBit[v])
                 {
-                    delayedL = processBitCrusher(delayedL, voiceDistortion[v]);
-                    delayedR = processBitCrusher(delayedR, voiceDistortion[v]);
+                    delayedL = processBitCrusher(delayedL, smoothedDistortion);
+                    delayedR = processBitCrusher(delayedR, smoothedDistortion);
                 }
             }
 
-            // Apply stereo width panning based on active voice combination
-            float voiceL = delayedL;
-            float voiceR = delayedR;
-
+            // Apply constant-power panning based on active voice combination
+            float panPos = 0.0f; // -1.0 left, +1.0 right
             if (activeVoiceCount >= 2)
             {
                 if (activeVoiceCount == 2)
                 {
-                    // Two voices active
-                    if (voiceOn[0] && voiceOn[1])
-                    {
-                        // I + II: I → Left, II → Right
-                        if (v == 0) // Voice I → Left
-                        {
-                            float leftGain = 0.5f + width * 0.5f;  // 0.5 to 1.0
-                            float rightGain = 0.5f - width * 0.5f; // 0.5 to 0.0
-                            voiceL = delayedL * leftGain + delayedR * leftGain * 0.5f;
-                            voiceR = delayedR * rightGain;
-                        }
-                        else if (v == 1) // Voice II → Right
-                        {
-                            float leftGain = 0.5f - width * 0.5f; // 0.5 to 0.0
-                            float rightGain = 0.5f + width * 0.5f; // 0.5 to 1.0
-                            voiceL = delayedL * leftGain;
-                            voiceR = delayedR * rightGain + delayedL * rightGain * 0.5f;
-                        }
-                    }
-                    else if (voiceOn[0] && voiceOn[2])
-                    {
-                        // I + III: I → Left, III → Right
-                        if (v == 0) // Voice I → Left
-                        {
-                            float leftGain = 0.5f + width * 0.5f;
-                            float rightGain = 0.5f - width * 0.5f;
-                            voiceL = delayedL * leftGain + delayedR * leftGain * 0.5f;
-                            voiceR = delayedR * rightGain;
-                        }
-                        else if (v == 2) // Voice III → Right
-                        {
-                            float leftGain = 0.5f - width * 0.5f;
-                            float rightGain = 0.5f + width * 0.5f;
-                            voiceL = delayedL * leftGain;
-                            voiceR = delayedR * rightGain + delayedL * rightGain * 0.5f;
-                        }
-                    }
-                    else if (voiceOn[1] && voiceOn[2])
-                    {
-                        // II + III: II → Left, III → Right
-                        if (v == 1) // Voice II → Left
-                        {
-                            float leftGain = 0.5f + width * 0.5f;
-                            float rightGain = 0.5f - width * 0.5f;
-                            voiceL = delayedL * leftGain + delayedR * leftGain * 0.5f;
-                            voiceR = delayedR * rightGain;
-                        }
-                        else if (v == 2) // Voice III → Right
-                        {
-                            float leftGain = 0.5f - width * 0.5f;
-                            float rightGain = 0.5f + width * 0.5f;
-                            voiceL = delayedL * leftGain;
-                            voiceR = delayedR * rightGain + delayedL * rightGain * 0.5f;
-                        }
-                    }
+                    if (voiceOn[0] && voiceOn[1]) { panPos = (v == 0) ? -width : +width; }
+                    else if (voiceOn[0] && voiceOn[2]) { panPos = (v == 0) ? -width : +width; }
+                    else if (voiceOn[1] && voiceOn[2]) { panPos = (v == 1) ? -width : +width; }
                 }
-                else // activeVoiceCount == 3
+                else // 3 voices: I center, II left, III right
                 {
-                    // All three voices: I → Center, II → Left, III → Right
-                    if (v == 0) // Voice I → Center (no panning)
-                    {
-                        // Center, no panning
-                        voiceL = delayedL;
-                        voiceR = delayedR;
-                    }
-                    else if (v == 1) // Voice II → Left
-                    {
-                        float leftGain = 0.5f + width * 0.5f;
-                        float rightGain = 0.5f - width * 0.5f;
-                        voiceL = delayedL * leftGain + delayedR * leftGain * 0.5f;
-                        voiceR = delayedR * rightGain;
-                    }
-                    else if (v == 2) // Voice III → Right
-                    {
-                        float leftGain = 0.5f - width * 0.5f;
-                        float rightGain = 0.5f + width * 0.5f;
-                        voiceL = delayedL * leftGain;
-                        voiceR = delayedR * rightGain + delayedL * rightGain * 0.5f;
-                    }
+                    if (v == 1) panPos = -width;
+                    else if (v == 2) panPos = +width;
+                    else panPos = 0.0f;
                 }
             }
-            // If only 1 voice, no panning (width already disabled above)
+            // Constant-power pan
+            applyConstantPowerPan(delayedL, delayedR, panPos);
 
-            wetL += voiceL;
-            wetR += voiceR;
+            wetL += delayedL;
+            wetR += delayedR;
         }
 
         // Normalize by number of active voices to prevent clipping
@@ -502,24 +508,39 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         if (activeVoiceCount == 0)
         {
             // No voices active - pass dry signal through (with input gain already applied)
-            outL = inputL;
-            outR = inputR;
+            outL = inputL_sample;
+            outR = inputR_sample;
         }
         else
         {
             // Mix between dry (with input gain) and wet signals
-            outL = inputL * (1.0f - mix) + wetL * mix;
-            outR = inputR * (1.0f - mix) + wetR * mix;
+            outL = inputL_sample * (1.0f - mix) + wetL * mix;
+            outR = inputR_sample * (1.0f - mix) + wetR * mix;
         }
 
         // Apply output gain
         outL *= outputGain;
         outR *= outputGain;
 
-        buffer.setSample(0, sample, outL);
-        if (buffer.getNumChannels() > 1)
-            buffer.setSample(1, sample, outR);
+        // Write to output buffers (no setSample - direct pointer access)
+        outputL[sample] = outL;
+        if (totalNumOutputChannels > 1)
+            outputR[sample] = outR;
     }
+}
+
+// Constant-power panning helper function
+void ThreeVoicesAudioProcessor::applyConstantPowerPan(float& left, float& right, float panPosition)
+{
+    // panPosition: -1.0 (full left) to 1.0 (full right), 0.0 = center
+    // Constant-power pan law: maintains perceived loudness across pan range
+    float panRadians = panPosition * juce::MathConstants<float>::pi * 0.5f;
+    float leftGain = std::cos(panRadians);
+    float rightGain = std::sin(panRadians);
+    
+    float tempL = left;
+    left = tempL * leftGain;
+    right = right * rightGain;
 }
 
 bool ThreeVoicesAudioProcessor::hasEditor() const
