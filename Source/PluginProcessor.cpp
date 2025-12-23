@@ -168,6 +168,14 @@ void ThreeVoicesAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
     smoothedMix.reset(sampleRate, smoothingTime);
     smoothedWidth.reset(sampleRate, smoothingTime);
 
+    // Initialize active gain compensation (2dB boost when voices are active)
+    smoothedActiveGain.reset(sampleRate, 0.1f); // 100ms for smooth gain transitions
+    smoothedActiveGain.setCurrentAndTargetValue(1.0f);
+
+    // Reset previous delay values
+    for (int i = 0; i < 3; ++i)
+        prevDelayTimeSamples[i] = 0.0f;
+
     // Initialize per-voice parameter smoothers
     for (int i = 0; i < 3; ++i)
     {
@@ -331,6 +339,11 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         if (voiceOn[i]) activeVoiceCount++;
     }
 
+    // Set target for active gain compensation
+    // When voices are active, boost by ~2dB (1.26x) to compensate for processing
+    float targetActiveGain = (activeVoiceCount > 0) ? 1.26f : 1.0f;
+    smoothedActiveGain.setTargetValue(targetActiveGain);
+
     // Get buffer pointers
     const float* inputL = buffer.getReadPointer(0);
     const float* inputR = totalNumInputChannels > 1 ? buffer.getReadPointer(1) : inputL;
@@ -338,6 +351,9 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     float* outputR = totalNumOutputChannels > 1 ? buffer.getWritePointer(1) : outputL;
 
     const float sampleRateFloat = static_cast<float>(currentSampleRate);
+
+    // Minimum delay in samples to avoid discontinuities (about 0.5ms)
+    const float minDelaySamples = sampleRateFloat * 0.0005f;
 
     // Process each sample
     for (int sample = 0; sample < numSamples; ++sample)
@@ -347,6 +363,7 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         float outputGain = smoothedOutputGain.getNextValue();
         float mix = smoothedMix.getNextValue();
         float width = smoothedWidth.getNextValue();
+        float activeGain = smoothedActiveGain.getNextValue();
 
         // Get input samples with input gain
         float inL = inputL[sample] * inputGain;
@@ -362,59 +379,62 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
         {
             if (!voiceOn[v]) continue;
 
-            // Get smoothed voice parameters (parameters are already smoothed!)
+            // Get smoothed voice parameters
             float speed = voiceSmoothers[v].speed.getNextValue();
             float delayMs = voiceSmoothers[v].delayTime.getNextValue();
             float depthPercent = voiceSmoothers[v].depth.getNextValue();
             float distortion = voiceSmoothers[v].distortion.getNextValue();
 
-            // Convert delay time from ms to samples
+            // Convert delay time from ms to samples (LINEAR mapping: 0-150ms)
             float baseDelaySamples = delayMs * sampleRateFloat / 1000.0f;
 
             // Depth is a FIXED modulation amount (0-10ms), NOT relative to delay
-            // This makes Speed and Delay Time completely independent
-            float maxModMs = 10.0f; // Maximum modulation swing is ±10ms
+            float maxModMs = 10.0f;
             float modAmountMs = (depthPercent * 0.01f) * maxModMs;
             float modAmountSamples = modAmountMs * sampleRateFloat / 1000.0f;
 
-            // Calculate UNIPOLAR LFO (0 to 1, not -1 to +1)
-            // This ensures modulation only ADDS delay, never subtracts
-            // Result: no negative delay values, no clamping clicks
+            // Calculate UNIPOLAR LFO (0 to 1)
             float lfo = 0.0f;
             if (speed > 0.001f)
             {
-                // Convert sine (-1 to +1) to unipolar (0 to 1)
                 float sinValue = std::sin(voices[v].phase * juce::MathConstants<float>::twoPi);
-                lfo = (sinValue + 1.0f) * 0.5f; // Now ranges 0 to 1
+                lfo = (sinValue + 1.0f) * 0.5f;
 
                 voices[v].phase += speed / sampleRateFloat;
                 if (voices[v].phase >= 1.0f) voices[v].phase -= 1.0f;
             }
 
             // Final delay = base delay + LFO modulation
-            // - When Speed=0: lfo=0, delay = baseDelay exactly
-            // - When Speed>0: delay oscillates from baseDelay to (baseDelay + modAmount)
-            // This keeps Speed and Delay Time COMPLETELY INDEPENDENT
             float delayTimeSamples = baseDelaySamples + lfo * modAmountSamples;
 
-            // Clamp to valid range (should never go negative now with unipolar LFO)
-            float maxDelay = sampleRateFloat * 0.16f; // 160ms max
+            // Clamp to valid range
+            float maxDelay = sampleRateFloat * 0.16f;
             delayTimeSamples = juce::jlimit(0.0f, maxDelay, delayTimeSamples);
 
-            // Push mono signal to delay line (ensures identical L/R when no panning)
+            // Always push to delay line
             voices[v].delayLine.pushSample(0, inMono);
 
-            // Pop delayed sample - NO double smoothing!
-            // The Lagrange interpolation handles smooth delay time changes.
-            // Parameter smoothers already handle knob changes.
+            // FIXED: Crossfade between dry and delayed to eliminate clicks at zero delay
+            // Instead of switching abruptly, we blend based on delay amount
             float delayedSample;
-            if (delayTimeSamples < 1.0f)
+
+            if (delayTimeSamples < minDelaySamples)
             {
-                // No delay - pass through
+                // Very low delay: use dry signal (no audible delay)
                 delayedSample = inMono;
+                // But still read from delay line to keep it flowing
+                voices[v].delayLine.popSample(0, minDelaySamples);
+            }
+            else if (delayTimeSamples < minDelaySamples * 2.0f)
+            {
+                // Crossfade zone: blend between dry and delayed
+                float crossfade = (delayTimeSamples - minDelaySamples) / minDelaySamples;
+                float delayed = voices[v].delayLine.popSample(0, delayTimeSamples);
+                delayedSample = inMono * (1.0f - crossfade) + delayed * crossfade;
             }
             else
             {
+                // Normal delay operation
                 delayedSample = voices[v].delayLine.popSample(0, delayTimeSamples);
             }
 
@@ -442,7 +462,6 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 
                 if (activeVoiceCount == 2)
                 {
-                    // Two voices: first active goes left, second goes right
                     int activeIndex = 0;
                     for (int check = 0; check <= v; ++check)
                     {
@@ -452,25 +471,24 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
                 }
                 else // 3 voices
                 {
-                    // Voice I: center, Voice II: left, Voice III: right
                     if (v == 1) panPos = -width;
                     else if (v == 2) panPos = width;
-                    // v == 0 stays at 0 (center)
                 }
 
-                // Apply constant-power panning
                 applyConstantPowerPan(voiceL, voiceR, panPos);
             }
-            // If width=0 or single voice, voiceL == voiceR (center)
 
             wetL += voiceL;
             wetR += voiceR;
         }
 
-        // Normalize by active voices
+        // Normalize by active voices (less aggressive to maintain volume)
         if (activeVoiceCount > 0)
         {
+            // Use 1/sqrt for 2-3 voices, but boost single voice
             float norm = 1.0f / std::sqrt(static_cast<float>(activeVoiceCount));
+            // Additional boost to compensate for mix processing
+            norm *= 1.1f;
             wetL *= norm;
             wetR *= norm;
         }
@@ -488,10 +506,18 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
             outR = inR * (1.0f - mix) + wetR * mix;
         }
 
+        // Apply active gain compensation (makes plugin louder when voices are on)
+        outL *= activeGain;
+        outR *= activeGain;
+
         // Apply output gain
-        outputL[sample] = outL * outputGain;
+        outL *= outputGain;
+        outR *= outputGain;
+
+        // Apply soft limiter to prevent clipping
+        outputL[sample] = softLimit(outL);
         if (totalNumOutputChannels > 1)
-            outputR[sample] = outR * outputGain;
+            outputR[sample] = softLimit(outR);
     }
 }
 
@@ -499,10 +525,6 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 void ThreeVoicesAudioProcessor::applyConstantPowerPan(float& left, float& right, float panPosition)
 {
     // panPosition: -1.0 (full left) to 1.0 (full right), 0.0 = center
-    // At center (pan=0): both channels should be equal (0.707 each for constant power)
-    // At full left (pan=-1): left=1.0, right=0.0
-    // At full right (pan=1): left=0.0, right=1.0
-
     // Map pan from [-1, 1] to [0, pi/2]
     float angle = (panPosition + 1.0f) * 0.5f * juce::MathConstants<float>::halfPi;
 
@@ -514,6 +536,26 @@ void ThreeVoicesAudioProcessor::applyConstantPowerPan(float& left, float& right,
     float mono = (left + right) * 0.5f;
     left = mono * leftGain;
     right = mono * rightGain;
+}
+
+// Soft limiter to prevent clipping while maintaining musicality
+float ThreeVoicesAudioProcessor::softLimit(float sample)
+{
+    // Soft knee limiter using tanh
+    // Starts limiting gently above 0.8, hard limits at ~1.0
+    const float threshold = 0.8f;
+
+    if (std::abs(sample) <= threshold)
+    {
+        return sample;
+    }
+
+    // Above threshold: apply soft saturation
+    float sign = (sample > 0.0f) ? 1.0f : -1.0f;
+    float excess = std::abs(sample) - threshold;
+    float limited = threshold + (1.0f - threshold) * std::tanh(excess / (1.0f - threshold));
+
+    return sign * limited;
 }
 
 bool ThreeVoicesAudioProcessor::hasEditor() const

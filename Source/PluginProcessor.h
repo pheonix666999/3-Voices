@@ -96,5 +96,14 @@ private:
     // Panning helper
     void applyConstantPowerPan(float& left, float& right, float panPosition);
 
+    // Soft limiter to prevent clipping
+    float softLimit(float sample);
+
+    // Gain compensation for active voices (smoothed)
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedActiveGain;
+
+    // Previous delay values for crossfade (per voice)
+    float prevDelayTimeSamples[3] = { 0.0f, 0.0f, 0.0f };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ThreeVoicesAudioProcessor)
 };
