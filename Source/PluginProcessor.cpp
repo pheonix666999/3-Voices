@@ -1,6 +1,176 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+juce::String sanitisePresetDisplayName(juce::String name)
+{
+    name = name.trim();
+    while (name.contains("  "))
+        name = name.replace("  ", " ");
+    name = name.replace("_", " ");
+    name = name.replace(".png", "", true);
+    name = name.replace(".jpg", "", true);
+    name = name.replace(".jpeg", "", true);
+    return name.trim();
+}
+
+juce::String stripPresetOrderingPrefix(juce::String name)
+{
+    name = sanitisePresetDisplayName(name);
+
+    int index = 0;
+    while (index < name.length() && juce::CharacterFunctions::isDigit(name[index]))
+        ++index;
+
+    if (index > 0)
+    {
+        while (index < name.length() && (name[index] == ' ' || name[index] == '-' || name[index] == '_'))
+            ++index;
+        name = name.substring(index).trim();
+    }
+
+    return sanitisePresetDisplayName(name);
+}
+
+juce::String normaliseCategoryFolderName(juce::String folderName)
+{
+    folderName = sanitisePresetDisplayName(folderName);
+    if (folderName.equalsIgnoreCase("Keys Synth")
+        || folderName.equalsIgnoreCase("Keys / Synth")
+        || folderName.equalsIgnoreCase("Keys _ Synth"))
+        return "Keys / Synth";
+    return folderName;
+}
+
+juce::File findPresetImageRoot()
+{
+    juce::Array<juce::File> roots;
+    roots.add(juce::File::getCurrentWorkingDirectory());
+    roots.add(juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory());
+    roots.add(juce::File::getSpecialLocation(juce::File::currentApplicationFile).getParentDirectory());
+
+    for (const auto& root : roots)
+    {
+        auto dir = root;
+        for (int d = 0; d < 6; ++d)
+        {
+            const auto candidate = dir.getChildFile("Unison Mod PRESETS");
+            if (candidate.isDirectory())
+                return candidate;
+            if (dir.isRoot())
+                break;
+            dir = dir.getParentDirectory();
+        }
+    }
+    return {};
+}
+
+juce::String makePresetKey(const juce::String& category, const juce::String& preset)
+{
+    auto key = (normaliseCategoryFolderName(category) + "|" + sanitisePresetDisplayName(preset)).toLowerCase();
+    key = key.removeCharacters(" .,_'!-+()/\\");
+    return key;
+}
+
+juce::File findImageDerivedPresetFile()
+{
+    juce::Array<juce::File> roots;
+    roots.add(juce::File::getCurrentWorkingDirectory());
+    roots.add(juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory());
+    roots.add(juce::File::getSpecialLocation(juce::File::currentApplicationFile).getParentDirectory());
+
+    for (const auto& root : roots)
+    {
+        auto dir = root;
+        for (int d = 0; d < 6; ++d)
+        {
+            const auto candidate = dir.getChildFile("Presets").getChildFile("ImageDerived.xml");
+            if (candidate.existsAsFile())
+                return candidate;
+            if (dir.isRoot())
+                break;
+            dir = dir.getParentDirectory();
+        }
+    }
+
+    return {};
+}
+}
+
+juce::StringArray ThreeVoicesAudioProcessor::createFlattenedPresetChoices()
+{
+    if (const auto presetRoot = findPresetImageRoot(); presetRoot.isDirectory())
+    {
+        const juce::StringArray categoryOrder {
+            "Classic Modulation", "Guitar", "Keys / Synth", "Bass", "Drums", "Vocals"
+        };
+
+        juce::StringArray out;
+        juce::Array<juce::File> categories;
+        categories = presetRoot.findChildFiles(juce::File::findDirectories, false);
+
+        auto categorySortKey = [&categoryOrder](const juce::File& file)
+        {
+            const auto category = normaliseCategoryFolderName(file.getFileName());
+            const int index = categoryOrder.indexOf(category);
+            return index >= 0 ? index : 1000;
+        };
+
+        std::sort(categories.begin(), categories.end(),
+                  [&categorySortKey](const juce::File& a, const juce::File& b)
+                  {
+                      const auto keyA = categorySortKey(a);
+                      const auto keyB = categorySortKey(b);
+                      return keyA == keyB ? a.getFileName() < b.getFileName() : keyA < keyB;
+                  });
+
+        for (const auto& categoryDir : categories)
+        {
+            const auto category = normaliseCategoryFolderName(categoryDir.getFileName());
+            auto presetFiles = categoryDir.findChildFiles(juce::File::findFiles, false, "*");
+            presetFiles.sort();
+
+            for (const auto& presetFile : presetFiles)
+            {
+                const auto extension = presetFile.getFileExtension().toLowerCase();
+                if (extension == ".png" || extension == ".jpg" || extension == ".jpeg")
+                    out.add(category + " - " + stripPresetOrderingPrefix(presetFile.getFileNameWithoutExtension()));
+            }
+        }
+
+        if (!out.isEmpty())
+            return out;
+    }
+
+    juce::StringArray out;
+
+    const juce::StringArray categories {
+        "Classic Modulation", "Guitar", "Keys / Synth", "Bass", "Drums", "Vocals"
+    };
+
+    const std::array<juce::StringArray, 6> presets {{
+        { "Welcome Chorus", "Mono Phase", "Rotary Paradise", "Color Of Love", "Saturated Warble",
+          "Darko", "Time Frames", "Mirage", "All Three Voices", "Claustrophobic" },
+        { "Instant Chorus", "Super Unison", "Guitar Lead I", "Guitar Lead II", "Guitar Lead III",
+          "Purple Mk.Prince", "Acoustic Nylon", "Black Hole Garden", "Tape Warble", "Seasick" },
+        { "That's Better", "Speed + Movement", "Nostalgic Aqua Lead", "Laura Palmer", "Wavy Pluck",
+          "More Space", "Mono Rhodes", "Terminator II", "Distorted Lead", "Demarco Days" },
+        { "Underwater", "Analog Movement", "1960's Slap Delay", "White Stripes Bass Player", "Moog Wide",
+          "Just Like The Cure", "Silverlake", "Plucky Synth Bass", "As You Are", "Slammed" },
+        { "Wide Kit", "Mono Break", "Trash Loop", "Crush Room", "Phase Bus",
+          "Dirty OH", "Vintage Groove", "Cymbal Swirl", "Tape Drift", "Snap Room" },
+        { "Vocal Double", "Unison Belt", "Yachty In Poland", "Classic Slapback", "Hypnosis",
+          "Subtle BG's", "Massive Vox", "Hurdy Gurdy", "Psychedelic Anthem", "Distorted Crimson" }
+    }};
+
+    for (int c = 0; c < (int) categories.size(); ++c)
+        for (const auto& p : presets[(size_t) c])
+            out.add(categories[c] + " - " + p);
+
+    return out;
+}
+
 ThreeVoicesAudioProcessor::ThreeVoicesAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
     : AudioProcessor(BusesProperties()
@@ -12,6 +182,7 @@ ThreeVoicesAudioProcessor::ThreeVoicesAudioProcessor()
 #endif
     ),
 #endif
+    flattenedPresetChoices(createFlattenedPresetChoices()),
     apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
 }
@@ -24,7 +195,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout ThreeVoicesAudioProcessor::c
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    // Input/Output Gain
+    // Input/Output Gain (kept for existing DSP compatibility)
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("inputGain", 1), "Input Gain",
         juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 0.0f));
@@ -41,6 +212,46 @@ juce::AudioProcessorValueTreeState::ParameterLayout ThreeVoicesAudioProcessor::c
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("width", 1), "Width",
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f));
+
+    // Required stable IDs used by the new PNG-hitbox UI
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("speed", 1), "Speed",
+        juce::NormalisableRange<float>(0.0f, 10.0f, 0.01f, 0.5f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("delayTime", 1), "Delay Time",
+        juce::NormalisableRange<float>(0.0f, 150.0f, 0.1f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("depth", 1), "Depth",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 50.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("distortion", 1), "Distortion",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("voice1", 1), "Voice 1", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("voice2", 1), "Voice 2", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("voice3", 1), "Voice 3", false));
+
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("dist_bit_1", 1), "Dist Bit 1", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("dist_tube_1", 1), "Dist Tube 1", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("dist_bit_2", 1), "Dist Bit 2", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("dist_tube_2", 1), "Dist Tube 2", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("dist_bit_3", 1), "Dist Bit 3", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("dist_tube_3", 1), "Dist Tube 3", false));
+
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("presetChoice", 1),
+        "Preset Choice",
+        flattenedPresetChoices,
+        0));
 
     // Voice parameters
     for (int i = 1; i <= 3; ++i)
@@ -146,6 +357,75 @@ void ThreeVoicesAudioProcessor::changeProgramName(int index, const juce::String&
     juce::ignoreUnused(index, newName);
 }
 
+int ThreeVoicesAudioProcessor::getCurrentPresetIndex() const
+{
+    if (auto* p = apvts.getRawParameterValue("presetChoice"))
+        return (int) p->load();
+    return 0;
+}
+
+void ThreeVoicesAudioProcessor::setCurrentPresetIndex(int index)
+{
+    if (auto* p = apvts.getParameter("presetChoice"))
+        p->setValueNotifyingHost(p->convertTo0to1((float) juce::jlimit(0, flattenedPresetChoices.size() - 1, index)));
+}
+
+bool ThreeVoicesAudioProcessor::applyImageDerivedPreset(int index)
+{
+    if (index < 0 || index >= flattenedPresetChoices.size())
+        return false;
+
+    return applyImageDerivedPreset(flattenedPresetChoices[index]);
+}
+
+bool ThreeVoicesAudioProcessor::applyImageDerivedPreset(const juce::String& flattenedChoice)
+{
+    const auto separator = flattenedChoice.indexOf(" - ");
+    if (separator < 0)
+        return false;
+
+    const auto category = flattenedChoice.substring(0, separator).trim();
+    const auto preset = flattenedChoice.substring(separator + 3).trim();
+    const auto key = makePresetKey(category, preset);
+    const auto presetFile = findImageDerivedPresetFile();
+
+    if (!presetFile.existsAsFile())
+        return false;
+
+    const auto document = juce::XmlDocument::parse(presetFile);
+    if (document == nullptr)
+        return false;
+
+    forEachXmlChildElement(*document, presetXml)
+    {
+        if (!presetXml->hasTagName("PRESET"))
+            continue;
+
+        if (presetXml->getStringAttribute("key") != key)
+            continue;
+
+        forEachXmlChildElement(*presetXml, paramXml)
+        {
+            if (!paramXml->hasTagName("PARAM"))
+                continue;
+
+            const auto paramId = paramXml->getStringAttribute("id");
+            const auto value = (float) paramXml->getDoubleAttribute("value");
+
+            if (auto* parameter = apvts.getParameter(paramId))
+            {
+                parameter->beginChangeGesture();
+                parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+                parameter->endChangeGesture();
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 void ThreeVoicesAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
@@ -218,12 +498,23 @@ bool ThreeVoicesAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
     juce::ignoreUnused(layouts);
     return true;
 #else
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-        && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+    const auto inputLayout = layouts.getMainInputChannelSet();
+    const auto outputLayout = layouts.getMainOutputChannelSet();
+
+    if (outputLayout != juce::AudioChannelSet::mono()
+        && outputLayout != juce::AudioChannelSet::stereo())
         return false;
 
 #if !JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+    if (inputLayout != juce::AudioChannelSet::mono()
+        && inputLayout != juce::AudioChannelSet::stereo())
+        return false;
+
+    // Allow mono->stereo in addition to matching channel layouts.
+    const bool matchingLayout = (outputLayout == inputLayout);
+    const bool monoToStereo = (inputLayout == juce::AudioChannelSet::mono()
+                               && outputLayout == juce::AudioChannelSet::stereo());
+    if (!matchingLayout && !monoToStereo)
         return false;
 #endif
 
@@ -306,17 +597,26 @@ void ThreeVoicesAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
     bool voiceOn[3];
     bool voiceTube[3], voiceBit[3];
 
-    voiceOn[0] = apvts.getRawParameterValue("voice1On")->load() > 0.5f;
-    voiceOn[1] = apvts.getRawParameterValue("voice2On")->load() > 0.5f;
-    voiceOn[2] = apvts.getRawParameterValue("voice3On")->load() > 0.5f;
+    voiceOn[0] = apvts.getRawParameterValue("voice1On")->load() > 0.5f
+              || apvts.getRawParameterValue("voice1")->load() > 0.5f;
+    voiceOn[1] = apvts.getRawParameterValue("voice2On")->load() > 0.5f
+              || apvts.getRawParameterValue("voice2")->load() > 0.5f;
+    voiceOn[2] = apvts.getRawParameterValue("voice3On")->load() > 0.5f
+              || apvts.getRawParameterValue("voice3")->load() > 0.5f;
 
-    voiceTube[0] = apvts.getRawParameterValue("voice1Tube")->load() > 0.5f;
-    voiceTube[1] = apvts.getRawParameterValue("voice2Tube")->load() > 0.5f;
-    voiceTube[2] = apvts.getRawParameterValue("voice3Tube")->load() > 0.5f;
+    voiceTube[0] = apvts.getRawParameterValue("voice1Tube")->load() > 0.5f
+                || apvts.getRawParameterValue("dist_tube_1")->load() > 0.5f;
+    voiceTube[1] = apvts.getRawParameterValue("voice2Tube")->load() > 0.5f
+                || apvts.getRawParameterValue("dist_tube_2")->load() > 0.5f;
+    voiceTube[2] = apvts.getRawParameterValue("voice3Tube")->load() > 0.5f
+                || apvts.getRawParameterValue("dist_tube_3")->load() > 0.5f;
 
-    voiceBit[0] = apvts.getRawParameterValue("voice1Bit")->load() > 0.5f;
-    voiceBit[1] = apvts.getRawParameterValue("voice2Bit")->load() > 0.5f;
-    voiceBit[2] = apvts.getRawParameterValue("voice3Bit")->load() > 0.5f;
+    voiceBit[0] = apvts.getRawParameterValue("voice1Bit")->load() > 0.5f
+               || apvts.getRawParameterValue("dist_bit_1")->load() > 0.5f;
+    voiceBit[1] = apvts.getRawParameterValue("voice2Bit")->load() > 0.5f
+               || apvts.getRawParameterValue("dist_bit_2")->load() > 0.5f;
+    voiceBit[2] = apvts.getRawParameterValue("voice3Bit")->load() > 0.5f
+               || apvts.getRawParameterValue("dist_bit_3")->load() > 0.5f;
 
     // Update voice parameter smoothers
     for (int i = 0; i < 3; ++i)

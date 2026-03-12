@@ -8,6 +8,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Add JUCE - adjust the path to your JUCE installation
 add_subdirectory(JUCE)
 
+juce_add_binary_data(ThreeVoicesAssets
+    SOURCES
+        bg_standard.png
+        bg_buttons_on.png
+        menu_categories.png
+        menu_classic_modulation.png
+        menu_guitar.png
+        menu_keys_synth.png
+        menu_bass.png
+        menu_vocals.png)
+
 juce_add_plugin(ThreeVoices
     COMPANY_NAME "YourCompany"
     IS_SYNTH FALSE
@@ -24,7 +35,10 @@ juce_add_plugin(ThreeVoices
 target_sources(ThreeVoices
     PRIVATE
         Source/PluginProcessor.cpp
-        Source/PluginEditor.cpp)
+        Source/PluginEditor.cpp
+        Source/ui/UnisonLookAndFeel.cpp
+        Source/ui/InvisibleLookAndFeel.cpp
+        Source/ui/PresetMenuOverlay.cpp)
 
 target_compile_definitions(ThreeVoices
     PUBLIC
@@ -34,8 +48,10 @@ target_compile_definitions(ThreeVoices
 
 target_link_libraries(ThreeVoices
     PRIVATE
+        ThreeVoicesAssets
         juce::juce_audio_utils
         juce::juce_dsp
+        juce::juce_video
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

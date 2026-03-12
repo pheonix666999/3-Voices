@@ -1,242 +1,164 @@
 #pragma once
 
+#include <array>
+#include <memory>
+#include <vector>
+
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <juce_audio_utils/juce_audio_utils.h>
+#include <juce_video/juce_video.h>
+
 #include "PluginProcessor.h"
+#include "ui/UnisonLookAndFeel.h"
+#include "ui/InvisibleLookAndFeel.h"
+#include "ui/PresetMenuOverlay.h"
 
-//==============================================================================
-// Custom rotary knob that matches the mockup
-class CustomKnob : public juce::Slider
+// Slider with paint() suppressed — used as invisible value holder only.
+// Visual rendering is done by the parent editor via paintOverChildren().
+// Mouse events are forwarded from the parent editor manually.
+struct SilentSlider : public juce::Slider
 {
-public:
-    CustomKnob()
+    void paint(juce::Graphics&) override {}
+
+    // Force permanently invisible — SliderAttachment or JUCE internals
+    // may call setVisible(true); this overrides it immediately every time.
+    void visibilityChanged() override
     {
-        setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-        setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-        setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFF9E9E9E));
-        setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xFF9E9E9E));
+        if (isVisible()) setVisible(false);
     }
 };
 
-//==============================================================================
-// Custom vertical fader
-class CustomFader : public juce::Slider
-{
-public:
-    CustomFader()
-    {
-        setSliderStyle(juce::Slider::LinearVertical);
-        setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    }
-};
-
-//==============================================================================
-// Custom toggle button for voices
-class VoiceButton : public juce::ToggleButton
-{
-public:
-    VoiceButton(const juce::String& text) : label(text)
-    {
-        setClickingTogglesState(true);
-    }
-
-    void paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
-    {
-        juce::ignoreUnused(shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
-
-        auto bounds = getLocalBounds().toFloat();
-
-        // Orange background
-        g.setColour(juce::Colour(0xFFFFA726));
-        g.fillRect(bounds);
-
-        // Border when toggled
-        if (getToggleState())
-        {
-            g.setColour(juce::Colours::white);
-            g.drawRect(bounds, 3.0f);
-        }
-
-        // Label text
-        g.setColour(juce::Colours::white);
-        g.setFont(juce::Font(18.0f, juce::Font::bold));
-        g.drawText(label, bounds, juce::Justification::centred);
-    }
-
-private:
-    juce::String label;
-};
-
-//==============================================================================
-// Custom toggle button for Tube/Bit
-class DistortionTypeButton : public juce::ToggleButton
-{
-public:
-    DistortionTypeButton(const juce::String& text) : label(text)
-    {
-        setClickingTogglesState(true);
-    }
-
-    void paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
-    {
-        juce::ignoreUnused(shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
-
-        auto bounds = getLocalBounds().toFloat();
-
-        // Orange background
-        g.setColour(juce::Colour(0xFFFFA726));
-        g.fillRect(bounds);
-
-        // Darker when not active
-        if (!getToggleState())
-        {
-            g.setColour(juce::Colour(0x80000000));
-            g.fillRect(bounds);
-        }
-
-        // Border when toggled
-        if (getToggleState())
-        {
-            g.setColour(juce::Colours::white);
-            g.drawRect(bounds, 2.0f);
-        }
-
-        // Label text
-        g.setColour(juce::Colours::white);
-        g.setFont(juce::Font(11.0f));
-        g.drawText(label, bounds, juce::Justification::centred);
-    }
-
-private:
-    juce::String label;
-};
-
-//==============================================================================
-// Custom look and feel for the plugin
-class ThreeVoicesLookAndFeel : public juce::LookAndFeel_V4
-{
-public:
-    ThreeVoicesLookAndFeel()
-    {
-        setColour(juce::Slider::thumbColourId, juce::Colours::white);
-        setColour(juce::Slider::trackColourId, juce::Colours::white.withAlpha(0.3f));
-        setColour(juce::Slider::backgroundColourId, juce::Colours::white.withAlpha(0.1f));
-    }
-
-    void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
-        float sliderPosProportional, float rotaryStartAngle,
-        float rotaryEndAngle, juce::Slider& slider) override
-    {
-        juce::ignoreUnused(slider);
-
-        auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
-        auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) / 2.0f;
-        auto centreX = bounds.getCentreX();
-        auto centreY = bounds.getCentreY();
-        auto rx = centreX - radius;
-        auto ry = centreY - radius;
-        auto rw = radius * 2.0f;
-
-        // Draw knob body (gray circle)
-        g.setColour(juce::Colour(0xFF9E9E9E));
-        g.fillEllipse(rx, ry, rw, rw);
-
-        // Draw indicator dot
-        auto angle = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
-        auto dotRadius = radius * 0.15f;
-        auto dotDistance = radius * 0.6f;
-        auto dotX = centreX + dotDistance * std::cos(angle - juce::MathConstants<float>::halfPi);
-        auto dotY = centreY + dotDistance * std::sin(angle - juce::MathConstants<float>::halfPi);
-
-        g.setColour(juce::Colours::black);
-        g.fillEllipse(dotX - dotRadius, dotY - dotRadius, dotRadius * 2.0f, dotRadius * 2.0f);
-    }
-
-    void drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height,
-        float sliderPos, float minSliderPos, float maxSliderPos,
-        const juce::Slider::SliderStyle style, juce::Slider& slider) override
-    {
-        juce::ignoreUnused(minSliderPos, maxSliderPos, style, slider);
-
-        auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
-
-        g.setColour(juce::Colours::white);
-
-        // Draw track (vertical white line)
-        auto trackWidth = 4.0f;
-        auto trackX = bounds.getCentreX() - trackWidth / 2.0f;
-        g.fillRect(trackX, bounds.getY(), trackWidth, bounds.getHeight());
-
-        // Draw top cap (horizontal line) - matches mockup
-        auto capWidth = bounds.getWidth() * 0.9f;
-        auto capHeight = 4.0f;
-        auto capX = bounds.getCentreX() - capWidth / 2.0f;
-        g.fillRect(capX, bounds.getY(), capWidth, capHeight);
-
-        // Draw bottom cap (horizontal line)
-        g.fillRect(capX, bounds.getBottom() - capHeight, capWidth, capHeight);
-
-        // Draw thumb (T-shaped handle)
-        auto thumbHeight = 10.0f;
-        auto thumbWidth = bounds.getWidth();
-        auto thumbY = sliderPos - thumbHeight / 2.0f;
-
-        // Clamp thumb position within bounds
-        thumbY = juce::jlimit(bounds.getY(), bounds.getBottom() - thumbHeight, thumbY);
-
-        g.fillRect(bounds.getX(), thumbY, thumbWidth, thumbHeight);
-    }
-};
-
-//==============================================================================
-class ThreeVoicesAudioProcessorEditor : public juce::AudioProcessorEditor, public juce::Timer
+class ThreeVoicesAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                        private juce::AudioProcessorValueTreeState::Listener,
+                                        private juce::Timer
 {
 public:
     explicit ThreeVoicesAudioProcessorEditor(ThreeVoicesAudioProcessor&);
     ~ThreeVoicesAudioProcessorEditor() override;
 
-    void paint(juce::Graphics&) override;
-    void resized() override;
-    void timerCallback() override;
+    void paint            (juce::Graphics&) override;
+    void paintOverChildren(juce::Graphics&) override;
+    void resized          () override;
+
+    // Mouse forwarding to invisible linear sliders
+    void mouseDown  (const juce::MouseEvent&) override;
+    void mouseDrag  (const juce::MouseEvent&) override;
+    void mouseUp    (const juce::MouseEvent&) override;
+    void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
 private:
-    ThreeVoicesAudioProcessor& audioProcessor;
-    ThreeVoicesLookAndFeel customLookAndFeel;
+    static constexpr int designW = 3366;
+    static constexpr int designH = 1945;
 
-    // Input/Output Gain
-    CustomFader inputGainSlider;
-    CustomFader outputGainSlider;
+    struct RowControls
+    {
+        juce::Slider speedKnob;
+        juce::Slider delayKnob;
+        juce::Slider depthKnob;
+        SilentSlider distortionSlider;
+
+        juce::ToggleButton voiceButton;
+        juce::ToggleButton bitButton;
+        juce::ToggleButton tubeButton;
+
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> speedAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> depthAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> distortionAttachment;
+
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> voiceAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bitAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> tubeAttachment;
+    };
+
+    void initialiseControls();
+    void initialiseAttachments();
+    void initialiseSideFaderArt();
+    void buildPresetPreviewLibrary();
+
+    juce::Rectangle<int> scaleRect(const juce::Rectangle<int>& ref) const;
+    void loadImages();
+    juce::Image loadImageByName(const juce::String& fileName) const;
+    juce::File findAssetFile(const juce::String& fileName) const;
+    void initialiseScreenAnimation();
+
+    bool anyToggleActive() const;
+    juce::String getCurrentPresetName() const;
+    void drawPresetDisplay(juce::Graphics& g);
+    void drawToggleOverlays(juce::Graphics& g);
+    void drawSideFaderHandles(juce::Graphics& g);
+    void drawDistortionSliderHandles(juce::Graphics& g);
+    void drawWidthSliderOverlay(juce::Graphics& g);
+    void drawScreenFallbackAnimation(juce::Graphics& g);
+
+    void drawRotaryKnobOverlays(juce::Graphics& g);
+    void drawSingleRotaryKnobOverlay(juce::Graphics& g,
+                                     const juce::Slider& slider,
+                                     const juce::Rectangle<int>& refBounds,
+                                     bool greenCap,
+                                     float sizeScale = 1.0f);
+
+    void updateScreenAnimationPlayback();
+    bool advanceFallbackAnimationFrame();
+
+    void openPresetOverlay();
+    void closePresetOverlay();
+    void onOverlayPresetSelected(int categoryIndex, int presetIndex);
+    void stepPreset(int delta);
+
+    void timerCallback() override;
+    void parameterChanged(const juce::String&, float) override;
+
+    // Returns the linear slider whose bounds contain localPos, or nullptr.
+    juce::Slider* findLinearSliderAt(juce::Point<int> localPos);
+
+    ThreeVoicesAudioProcessor& audioProcessor;
+    UnisonLookAndFeel unisonLookAndFeel;
+    InvisibleLookAndFeel invisibleLookAndFeel;
+
+    juce::Image bgStandard;
+    juce::Image bgButtonsOn;
+
+    juce::Image menuCategories;
+    juce::Image menuClassicMod;
+    juce::Image menuGuitar;
+    juce::Image menuKeysSynth;
+    juce::Image menuBass;
+    juce::Image menuDrums;
+    juce::Image menuVocals;
+    juce::Image leftSideFaderSprite;
+    juce::Image rightSideFaderSprite;
+    juce::Image sideFaderBottomCleanPatch;
+    juce::Image sideFaderThumb;       // grip image drawn as the fader thumb
+
+    std::array<RowControls, 3> rows;
+
+    SilentSlider widthSlider;
+    juce::Slider mixKnob;
+    SilentSlider inputGainSlider;
+    SilentSlider outputGainSlider;
+
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> widthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> inputGainAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputGainAttachment;
 
-    // Global controls
-    CustomKnob mixKnob;
-    CustomFader widthSlider;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> widthAttachment;
+    juce::TextButton presetButton;
+    juce::TextButton previousPresetButton;
+    juce::TextButton nextPresetButton;
+    std::unique_ptr<PresetMenuOverlay> presetOverlay;
+    std::unique_ptr<juce::VideoComponent> screenVideo;
+    juce::Array<juce::Image> animationFrames;
+    juce::Array<juce::Image> presetPreviewImages;
+    int currentAnimationFrame = 0;
 
-    // Voice controls (3 voices)
-    struct VoiceControls
-    {
-        std::unique_ptr<VoiceButton> voiceButton;
-        std::unique_ptr<CustomKnob> speedKnob;
-        std::unique_ptr<CustomKnob> delayTimeKnob;
-        std::unique_ptr<CustomKnob> depthKnob;
-        std::unique_ptr<CustomFader> distortionSlider;
-        std::unique_ptr<DistortionTypeButton> tubeButton;
-        std::unique_ptr<DistortionTypeButton> bitButton;
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::Listener>> ownedListeners;
 
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> voiceAttachment;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> speedAttachment;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayTimeAttachment;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> depthAttachment;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> distortionAttachment;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> tubeAttachment;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bitAttachment;
-    };
+    juce::CriticalSection stateLock;
+    juce::String cachedPresetName;
 
-    VoiceControls voiceControls[3];
+    // Mouse forwarding state
+    juce::Slider* activeDragSlider = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ThreeVoicesAudioProcessorEditor)
 };

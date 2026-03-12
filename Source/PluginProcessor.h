@@ -38,10 +38,17 @@ public:
     void setStateInformation(const void* data, int sizeInBytes) override;
 
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
+    const juce::StringArray& getFlattenedPresetChoices() const noexcept { return flattenedPresetChoices; }
+    int getCurrentPresetIndex() const;
+    void setCurrentPresetIndex(int index);
+    bool applyImageDerivedPreset(int index);
 
 private:
+    bool applyImageDerivedPreset(const juce::String& flattenedChoice);
     juce::AudioProcessorValueTreeState apvts;
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    juce::StringArray flattenedPresetChoices;
+    static juce::StringArray createFlattenedPresetChoices();
 
     // Voice processing - mono delay line with Lagrange interpolation
     struct VoiceProcessor

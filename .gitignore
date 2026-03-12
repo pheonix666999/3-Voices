@@ -1,5 +1,9 @@
 # Build directories
 build/
+build-debug/
+build-ninja/
+build-ninja-debug/
+build-ninja-*/
 Builds/
 cmake-build-*/
 
@@ -16,6 +20,8 @@ JUCE/
 .idea/
 *.xcworkspace
 xcuserdata/
+.codex/
+skills/
 
 # Compiled files
 *.o
@@ -46,6 +52,31 @@ desktop.ini
 *.log
 *.bak
 *~
+nul
+vs_BuildTools.exe
+winsdk_install.log
 
 # Claude Code settings (optional - remove if you want to keep)
 .claude/
+
+# Local docs and analysis helpers
+ASSETS.md
+PRESETS.md
+analyze_ui.py
+extract_frames.py
+
+# Local helper scripts and one-off build runners
+*.ps1
+build_again.bat
+build_ninja.bat
+build_ninja_debug.bat
+build_ninja_lowmem.bat
+clean_build_debug.bat
+install_sdk_and_build.bat
+scripts/
+
+# Runtime-only media, generated previews, and local derived presets
+Greyland Audio Animation.mp4
+Assets/
+Unison Mod PRESETS/
+Presets/ImageDerived.xml
