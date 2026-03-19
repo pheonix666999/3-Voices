@@ -211,7 +211,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout ThreeVoicesAudioProcessor::c
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("width", 1), "Width",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f));
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 50.0f));
 
     // Required stable IDs used by the new PNG-hitbox UI
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
@@ -292,6 +292,25 @@ juce::AudioProcessorValueTreeState::ParameterLayout ThreeVoicesAudioProcessor::c
     }
 
     return { params.begin(), params.end() };
+}
+
+void ThreeVoicesAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
+{
+    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+
+    if (xmlState.get() != nullptr)
+        if (xmlState->hasTagName(apvts.state.getType()))
+            apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+
+    // Always start the side gain faders at 0 dB after restoring state.
+    auto resetParam = [this](const char* id, float value)
+    {
+        if (auto* p = apvts.getParameter(id))
+            p->setValueNotifyingHost(p->convertTo0to1(value));
+    };
+    resetParam("inputGain",  0.0f);
+    resetParam("outputGain", 0.0f);
+    resetParam("width",      50.0f);
 }
 
 const juce::String ThreeVoicesAudioProcessor::getName() const
@@ -873,15 +892,6 @@ void ThreeVoicesAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     auto state = apvts.copyState();
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
-}
-
-void ThreeVoicesAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
-{
-    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
-
-    if (xmlState.get() != nullptr)
-        if (xmlState->hasTagName(apvts.state.getType()))
-            apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

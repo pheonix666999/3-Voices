@@ -14,22 +14,44 @@ constexpr std::array<const char*, 3> kDelayIds      { "voice1DelayTime", "voice2
 constexpr std::array<const char*, 3> kDepthIds      { "voice1Depth", "voice2Depth", "voice3Depth" };
 constexpr std::array<const char*, 3> kDistortionIds { "voice1Distortion", "voice2Distortion", "voice3Distortion" };
 
+struct RectAdjust
+{
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+};
+
+struct PointAdjust
+{
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
+static juce::Rectangle<int> applyRectAdjust(juce::Rectangle<int> r, const RectAdjust& a)
+{
+    r.setPosition(r.getX() + a.x, r.getY() + a.y);
+    r.setSize(r.getWidth() + a.w, r.getHeight() + a.h);
+    return r;
+}
+
+const juce::Rectangle<int> kRightFaderBottomBlobCoverRef { 3050, 1200, 202, 772 };
 const juce::Rectangle<int> kScreenBodyRef { 2272, 724,  620, 637 };
 const juce::Rectangle<int> kVideoRef      { 2330, 750,  580, 590 };
 const juce::Rectangle<int> kPresetTextRef { 2458, 566, 432, 58 };
 const juce::Rectangle<int> kPresetOpenRef { 2438, 533, 470, 126 };
 const juce::Rectangle<int> kPresetPrevRef { 2888, 552, 64, 38 };
 const juce::Rectangle<int> kPresetNextRef { 2888, 596, 64, 38 };
-const juce::Rectangle<int> kLeftFaderRef  { 134, 201, 71, 1543 };
-const juce::Rectangle<int> kRightFaderRef { 3161, 204, 71, 1543 };
-const juce::Rectangle<int> kLeftFaderCutoutRef  { 149, 213, 41, 1500 };
-const juce::Rectangle<int> kRightFaderCutoutRef { 3176, 216, 41, 1500 };
-const juce::Rectangle<int> kLeftFaderStraightPatchRef  { 118, 624, 103, 142 };
-const juce::Rectangle<int> kRightFaderStraightPatchRef { 3145, 624, 103, 142 };
+const juce::Rectangle<int> kLeftFaderRef  { 120, 201, 81, 1530 };
+const juce::Rectangle<int> kRightFaderRef { 3065, 204, 81, 1530 };
+const juce::Rectangle<int> kLeftFaderCutoutRef  { 135, 217, 55, 1492 };
+const juce::Rectangle<int> kRightFaderCutoutRef { 3080, 220, 55, 1492 };
+const juce::Rectangle<int> kLeftFaderStraightPatchRef  { 70, 760, 200, 260 };
+const juce::Rectangle<int> kRightFaderStraightPatchRef { 3056, 1790, 200, 260 };
 const juce::Rectangle<int> kLeftFaderTopPatchRef  { 134, 201, 71, 160 };   // Clean top rail strip to reuse at the bottom.
 const juce::Rectangle<int> kRightFaderTopPatchRef { 3161, 204, 71, 160 };  // Clean top rail strip to reuse at the bottom.
-const juce::Rectangle<int> kLeftFaderBottomPatchRef  { 118, 1562, 103, 176 };   // Lower redraw area for the left big slider.
-const juce::Rectangle<int> kRightFaderBottomPatchRef { 3145, 1562, 103, 176 };  // Lower redraw area for the right big slider.
+const juce::Rectangle<int> kLeftFaderBottomPatchRef  { 134, 1662, 71, 118 };   // Lower redraw area for the left big slider.
+const juce::Rectangle<int> kRightFaderBottomPatchRef { 3161, 1662, 71, 118 };  // Lower redraw area for the right big slider.
 const juce::Rectangle<int> kInputFaderStemCleanupRef       { 151, 1514,  30, 142 };
 const juce::Rectangle<int> kOutputFaderStemCleanupRef      { 3080, 1514, 30, 142 };
 const juce::Rectangle<int> kInputFaderStemCleanupSampleRef { 138, 1324,  56, 158 };
@@ -38,8 +60,13 @@ const juce::Rectangle<int> kInputFaderCapCleanupRef        { 116, 1608, 100,  76
 const juce::Rectangle<int> kOutputFaderCapCleanupRef       { 3045, 1608, 100,  76 };
 const juce::Rectangle<int> kInputFaderCapCleanupSampleRef  { 106, 1508, 120,  86 };
 const juce::Rectangle<int> kOutputFaderCapCleanupSampleRef { 3035, 1508, 120,  86 };
-const juce::Rectangle<int> kLeftFaderBottomCleanupRef      { 108, 1540, 112, 126 };
-const juce::Rectangle<int> kRightFaderBottomCleanupRef     { 3037, 1540, 112, 126 };
+const juce::Rectangle<int> kLeftVoiceAreaCleanupRef        { 52, 1638, 150, 290 };
+const juce::Rectangle<int> kLeftFaderBottomCleanupRef      { 36, 1528, 270, 450 };
+const juce::Rectangle<int> kRightFaderBottomCleanupRef { 3032, 1526, 820, 360 };
+const juce::Rectangle<int> kLeftFaderBelowCleanupRef       { 96, 1742, 128, 44 };
+const juce::Rectangle<int> kRightFaderBelowCleanupRef      { 3031, 1742, 128, 44 };
+const juce::Rectangle<int> kRightFaderSideCleanupRef       { 3010, 1510, 0, 0 };
+const juce::Rectangle<int> kRightFaderShadowCleanupRef     { 2960, 1600, 250, 170 };
 const juce::Rectangle<int> kLeftFaderBottomCleanupSampleRef { 88, 1168, 150, 208 };
 const juce::Rectangle<int> kRightFaderBottomCleanupSampleRef { 3017, 1168, 150, 208 };
 const juce::Rectangle<int> kWidthThumbCleanupRef           { 2246, 1538, 128, 92 };
@@ -59,31 +86,63 @@ const std::array<juce::Rectangle<int>, 3> kDistortionCleanupSampleRefs {{
 }};
 
 const std::array<juce::Rectangle<int>, 3> kDistortionTravelRefs {{
-    { 1876,  343, 48, 258 },
-    { 1876,  831, 48, 258 },
-    { 1876, 1319, 48, 258 }
+    { 1896,  343, 48, 258 },
+    { 1896,  831, 48, 258 },
+    { 1896, 1319, 48, 258 }
 }};
 
 const std::array<juce::Rectangle<int>, 3> kDistortionFaderRefs {{
-    { 1895,  343, 51, 300 },
-    { 1895,  831, 51, 300 },
-    { 1898, 1319, 51, 300 }
+    { 1832,  341, 66, 300 },
+    { 1828,  828, 66, 300 },
+    { 1830, 1317, 66, 300 }
 }};
 
 const std::array<juce::Rectangle<int>, 3> kDistortionCutoutRefs {{
-    { 1908,  358, 25, 269 },
-    { 1908,  846, 25, 269 },
-    { 1911, 1334, 25, 269 }
+    { 1852,  358, 29, 269 },
+    { 1846,  846, 29, 269 },
+    { 1846, 1334, 29, 269 }
 }};
 
 const juce::Rectangle<int> kWidthInnerTrackRef { 2271, 1579, 148, 30 };
+
+// Static knob coverage areas — regions in bg_standard.png that contain baked-in knobs to paint over
+// Tightly sized to only cover the knob + shadow footprint, staying within chassis boundaries
+const juce::Rectangle<int> kLeftKnobCoverRef   { 92, 1588, 146, 168 };
+const juce::Rectangle<int> kRightKnobCoverRef  { 3125, 1597, 146, 168 };
+const std::array<juce::Rectangle<int>, 3> kDistKnobCoverRefs {{
+    { 1838,  548, 118, 118 },
+    { 1834, 1036, 118, 118 },
+    { 1836, 1524, 118, 118 }
+}};
+
+const juce::Rectangle<int> kWidthKnobCoverRef { 2240, 1536, 150, 100 };
+
+// Width slider track refs
+const juce::Rectangle<int> kWidthFaderRef      { 2262, 1566, 340, 76 };
+const juce::Rectangle<int> kWidthCutoutRef     { 2276, 1581, 318, 44 };
+
+// Editable slider tuning values
+const std::array<RectAdjust, 3> kDistortionSliderBoundsAdjust {{
+    { -22, -12, 78, 24 },
+    { -22, -12, 78, 24 },
+    { -22, -12, 78, 24 }
+}};
+
+const std::array<PointAdjust, 3> kDistortionThumbOffset {{
+    { -3.0f, 0.0f },
+    { -2.0f, 0.0f },
+    { -2.0f, 0.0f }
+}};
+
+const RectAdjust kWidthSliderBoundsAdjust { -14, 8, 34, 12 };
+const PointAdjust kWidthThumbOffset { 0.0f, 2.0f };
 
 // Visual track widths/heights from bg_standard.png (design px)
 // These drive thumb sizing, independent of the wider hit-area components.
 constexpr float kSideFaderKnobOuterSize = 108.895f;
 constexpr float kSideFaderKnobTopSize = 77.782f;
-constexpr float kSmallFaderKnobOuterSize = 63.0f;
-constexpr float kSmallFaderKnobTopSize = 45.0f;
+constexpr float kSmallFaderKnobOuterSize = 56.0f;
+constexpr float kSmallFaderKnobTopSize = 40.0f;
 
 juce::String sanitisePresetDisplayName(juce::String name)
 {
@@ -92,6 +151,70 @@ juce::String sanitisePresetDisplayName(juce::String name)
         name = name.replace("  ", " ");
     name = name.replace("_", " ");
     return name.trim();
+}
+
+static void fillChassisBlendPatch(juce::Graphics& g,
+                                  juce::Rectangle<float> area,
+                                  float designScreenTop,
+                                  float designScreenBot)
+{
+    // Keep vertical chassis relation like the rest of the panel
+    const juce::Colour chassisTop (0xFFC8C9CB);
+    const juce::Colour chassisBot (0xFFA6A7A9);
+
+    // Base gradient, same family as the main chassis
+    juce::ColourGradient bodyGrad(chassisTop,
+                                  area.getCentreX(), designScreenTop,
+                                  chassisBot,
+                                  area.getCentreX(), designScreenBot,
+                                  false);
+    bodyGrad.addColour(0.52, juce::Colour(0xFFB8B9BB));
+    g.setGradientFill(bodyGrad);
+    g.fillEllipse(area);
+
+    // Darker left-side merge so it visually joins the incoming slot shadow
+    juce::ColourGradient leftMerge(juce::Colours::black.withAlpha(0.12f),
+                                   area.getX() + area.getWidth() * 0.10f, area.getCentreY(),
+                                   juce::Colours::transparentBlack,
+                                   area.getX() + area.getWidth() * 0.42f, area.getCentreY(),
+                                   false);
+    g.setGradientFill(leftMerge);
+    g.fillEllipse(area);
+
+    // Mild right-side lift only, not too bright
+    juce::ColourGradient rightLift(juce::Colours::transparentWhite,
+                                   area.getX() + area.getWidth() * 0.56f, area.getCentreY(),
+                                   juce::Colours::white.withAlpha(0.028f),
+                                   area.getRight() - area.getWidth() * 0.10f, area.getCentreY(),
+                                   false);
+    g.setGradientFill(rightLift);
+    g.fillEllipse(area);
+
+    // Very soft top sheen
+    juce::ColourGradient topGlow(juce::Colours::white.withAlpha(0.020f),
+                                 area.getX() + area.getWidth() * 0.32f,
+                                 area.getY() + area.getHeight() * 0.18f,
+                                 juce::Colours::transparentWhite,
+                                 area.getX() + area.getWidth() * 0.56f,
+                                 area.getY() + area.getHeight() * 0.42f,
+                                 true);
+    g.setGradientFill(topGlow);
+    g.fillEllipse(area.reduced(area.getWidth() * 0.08f, area.getHeight() * 0.08f));
+
+    // Tiny lower-right falloff so it does not look flat
+    juce::ColourGradient bottomFalloff(juce::Colours::transparentBlack,
+                                       area.getX() + area.getWidth() * 0.52f,
+                                       area.getY() + area.getHeight() * 0.46f,
+                                       juce::Colours::black.withAlpha(0.045f),
+                                       area.getX() + area.getWidth() * 0.84f,
+                                       area.getY() + area.getHeight() * 0.88f,
+                                       true);
+    g.setGradientFill(bottomFalloff);
+    g.fillEllipse(area);
+
+    // Practically invisible edge
+    g.setColour(juce::Colours::white.withAlpha(0.006f));
+    g.drawEllipse(area.reduced(1.0f), 0.45f);
 }
 
 juce::String stripPresetOrderingPrefix(juce::String name)
@@ -193,6 +316,8 @@ static NoThumbLAF gNoThumbLAF;
 ThreeVoicesAudioProcessorEditor::ThreeVoicesAudioProcessorEditor(ThreeVoicesAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p)
 {
+    DBG("Working directory: " + juce::File::getCurrentWorkingDirectory().getFullPathName());
+    DBG("Exe path: " + juce::File::getSpecialLocation(juce::File::currentExecutableFile).getFullPathName());
     setOpaque(true);
     setResizable(false, false);
 
@@ -465,7 +590,6 @@ void ThreeVoicesAudioProcessorEditor::loadImages()
     menuDrums      = loadImageByName("menu_drums.png");
     menuVocals     = loadImageByName("menu_vocals.png");
     sideFaderBottomCleanPatch = loadImageByName("clean_up.png");
-    sideFaderThumb = loadImageByName("fader_grip.png");
 }
 
 juce::Image ThreeVoicesAudioProcessorEditor::loadImageByName(const juce::String& fileName) const
@@ -481,10 +605,12 @@ juce::Image ThreeVoicesAudioProcessorEditor::loadImageByName(const juce::String&
         else if (fileName == "menu_keys_synth.png")         { d = BinaryData::menu_keys_synth_png;         sz = BinaryData::menu_keys_synth_pngSize; }
         else if (fileName == "menu_bass.png")               { d = BinaryData::menu_bass_png;               sz = BinaryData::menu_bass_pngSize; }
         else if (fileName == "menu_vocals.png")             { d = BinaryData::menu_vocals_png;             sz = BinaryData::menu_vocals_pngSize; }
+        else if (fileName == "clean_up.png")                { d = BinaryData::clean_up_png;                sz = BinaryData::clean_up_pngSize; }
         if (d && sz > 0) return juce::ImageFileFormat::loadFrom(d, (size_t) sz);
         return {};
     };
-    if (auto img = fromBinary(); img.isValid()) return img;
+    if (auto img = fromBinary(); img.isValid()) { DBG("Loaded " + fileName + " from binary"); return img; }
+    DBG("Binary not valid for " + fileName + ", searching files");
 
     juce::Array<juce::File> roots;
     roots.add(juce::File::getCurrentWorkingDirectory());
@@ -530,13 +656,17 @@ void ThreeVoicesAudioProcessorEditor::paint(juce::Graphics& g)
 {
     if (bgStandard.isValid())
     {
-        const float us = juce::jmin(getWidth() / (float) designW, getHeight() / (float) designH);
-        const int w = (int) std::round(designW * us), h = (int) std::round(designH * us);
-        g.drawImageWithin(bgStandard, (getWidth()-w)/2, (getHeight()-h)/2, w, h,
-                          juce::RectanglePlacement::stretchToFit, false);
+        g.drawImage(bgStandard,
+                    0, 0, getWidth(), getHeight(),
+                    0, 0, bgStandard.getWidth(), bgStandard.getHeight(),
+                    false);
     }
     else { g.fillAll(juce::Colour(0xFFBFC0C2)); }
 
+    drawSliderTrackBodies(g);
+    drawSideFaderHandles(g);        // ← was missing
+    drawDistortionSliderHandles(g); // ← was missing
+    drawWidthSliderOverlay(g);      // ← was missing
     drawRotaryKnobOverlays(g);
     drawToggleOverlays(g);
     drawScreenFallbackAnimation(g);
@@ -545,9 +675,7 @@ void ThreeVoicesAudioProcessorEditor::paint(juce::Graphics& g)
 
 void ThreeVoicesAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 {
-    drawSideFaderHandles(g);
-    drawDistortionSliderHandles(g);
-    drawWidthSliderOverlay(g);
+    juce::ignoreUnused(g);
 }
 
 // ============================================================================
@@ -669,66 +797,119 @@ static void drawBlackSliderCover(juce::Graphics& g, const juce::Rectangle<float>
 
 static void drawGreenFaderKnob(juce::Graphics& g, const juce::Rectangle<float>& outerRect)
 {
-    const float rim = outerRect.getWidth() * 0.5f;
-    const auto topRect = outerRect.withSizeKeepingCentre(outerRect.getWidth() * (kSideFaderKnobTopSize / kSideFaderKnobOuterSize),
-                                                         outerRect.getHeight() * (kSideFaderKnobTopSize / kSideFaderKnobOuterSize));
-    const auto baseShadow = outerRect.translated(0.0f, outerRect.getHeight() * 0.22f)
-                                     .withSizeKeepingCentre(outerRect.getWidth() * 0.92f, outerRect.getHeight() * 0.58f);
+    const float d = outerRect.getWidth();
+    const auto shadow1 = outerRect.translated(d * 0.05f, d * 0.16f)
+                                   .withSizeKeepingCentre(d * 0.92f, d * 0.42f);
+    const auto shadow2 = outerRect.translated(d * 0.03f, d * 0.09f)
+                                   .withSizeKeepingCentre(d * 0.76f, d * 0.30f);
 
-    g.setColour(juce::Colours::black.withAlpha(0.36f));
-    g.fillEllipse(baseShadow);
-    g.setColour(juce::Colours::white.withAlpha(0.10f));
-    g.drawEllipse(baseShadow.translated(0.0f, outerRect.getHeight() * 0.015f), outerRect.getWidth() * 0.014f);
+    g.setColour(juce::Colours::black.withAlpha(0.28f));
+    g.fillEllipse(shadow1);
+    g.setColour(juce::Colours::black.withAlpha(0.48f));
+    g.fillEllipse(shadow2);
 
-    juce::ColourGradient rimGrad(juce::Colour(0xFF62C985), outerRect.getCentreX(), outerRect.getY(),
-                                 juce::Colour(0xFF2C9B58), outerRect.getCentreX(), outerRect.getBottom(), false);
-    rimGrad.addColour(0.55, juce::Colour(0xFF49B96D));
-    g.setGradientFill(rimGrad);
-    g.fillEllipse(outerRect);
+    {
+        juce::ColourGradient rimGrad(juce::Colour(0xFF79D894), outerRect.getCentreX(), outerRect.getY(),
+                                     juce::Colour(0xFF248E4D), outerRect.getCentreX(), outerRect.getBottom(), false);
+        rimGrad.addColour(0.42, juce::Colour(0xFF49B96A));
+        rimGrad.addColour(0.72, juce::Colour(0xFF309A56));
+        g.setGradientFill(rimGrad);
+        g.fillEllipse(outerRect);
+    }
 
-    juce::ColourGradient topGrad(juce::Colour(0xFF5FCD84), topRect.getCentreX(), topRect.getY(),
-                                 juce::Colour(0xFF42B066), topRect.getCentreX(), topRect.getBottom(), false);
-    topGrad.addColour(0.60, juce::Colour(0xFF4CBD71));
-    g.setGradientFill(topGrad);
-    g.fillEllipse(topRect);
+    const auto inner = outerRect.reduced(d * 0.10f);
+    {
+        juce::ColourGradient innerGrad(juce::Colour(0xFF61CF84), inner.getCentreX(), inner.getY(),
+                                       juce::Colour(0xFF39A85D), inner.getCentreX(), inner.getBottom(), false);
+        innerGrad.addColour(0.50, juce::Colour(0xFF47B86A));
+        g.setGradientFill(innerGrad);
+        g.fillEllipse(inner);
+    }
 
-    g.setColour(juce::Colours::white.withAlpha(0.12f));
-    g.drawEllipse(outerRect.reduced(outerRect.getWidth() * 0.02f), outerRect.getWidth() * 0.014f);
-    g.setColour(juce::Colours::black.withAlpha(0.16f));
-    g.drawEllipse(topRect.reduced(topRect.getWidth() * 0.02f), topRect.getWidth() * 0.012f);
-    g.setColour(juce::Colours::black.withAlpha(0.12f));
-    g.drawEllipse(outerRect.reduced(outerRect.getWidth() * 0.10f, outerRect.getHeight() * 0.10f), rim * 0.72f * 0.02f);
+    {
+        auto sheen = inner.withHeight(inner.getHeight() * 0.48f).translated(0.0f, inner.getHeight() * 0.03f);
+        juce::ColourGradient sheenGrad(juce::Colours::white.withAlpha(0.22f),
+                                       sheen.getCentreX(), sheen.getY(),
+                                       juce::Colours::transparentWhite,
+                                       sheen.getCentreX(), sheen.getBottom(), false);
+        g.setGradientFill(sheenGrad);
+        g.fillEllipse(sheen);
+    }
+
+    {
+        auto bottomShade = inner.withY(inner.getCentreY()).withHeight(inner.getHeight() * 0.42f);
+        juce::ColourGradient shadeGrad(juce::Colours::transparentBlack,
+                                       bottomShade.getCentreX(), bottomShade.getY(),
+                                       juce::Colours::black.withAlpha(0.16f),
+                                       bottomShade.getCentreX(), bottomShade.getBottom(), false);
+        g.setGradientFill(shadeGrad);
+        g.fillEllipse(bottomShade);
+    }
+
+    g.setColour(juce::Colours::white.withAlpha(0.26f));
+    g.drawEllipse(inner.reduced(d * 0.02f), 1.0f);
+
+    g.setColour(juce::Colours::black.withAlpha(0.22f));
+    g.drawEllipse(outerRect.reduced(d * 0.01f), 1.1f);
 }
 
 static void drawSilverFaderKnob(juce::Graphics& g, const juce::Rectangle<float>& outerRect)
 {
-    const float outerR = outerRect.getWidth() * 0.5f;
-    const auto topRect = outerRect.withSizeKeepingCentre(outerRect.getWidth() * (kSmallFaderKnobTopSize / kSmallFaderKnobOuterSize),
-                                                         outerRect.getHeight() * (kSmallFaderKnobTopSize / kSmallFaderKnobOuterSize));
-    const auto dropShadow = outerRect.translated(outerRect.getWidth() * 0.06f, outerRect.getHeight() * 0.16f)
-                                     .withSizeKeepingCentre(outerRect.getWidth() * 1.08f, outerRect.getHeight() * 0.86f);
+    const float d = outerRect.getWidth();
+    const auto shadow1 = outerRect.translated(d * 0.04f, d * 0.13f)
+                                   .withSizeKeepingCentre(d * 0.90f, d * 0.34f);
+    const auto shadow2 = outerRect.translated(d * 0.02f, d * 0.08f)
+                                   .withSizeKeepingCentre(d * 0.72f, d * 0.24f);
 
-    g.setColour(juce::Colours::black.withAlpha(0.34f));
-    g.fillEllipse(dropShadow);
-    g.setColour(juce::Colours::white.withAlpha(0.08f));
-    g.drawEllipse(dropShadow.translated(0.0f, outerRect.getHeight() * 0.015f), outerRect.getWidth() * 0.012f);
+    g.setColour(juce::Colours::black.withAlpha(0.22f));
+    g.fillEllipse(shadow1);
+    g.setColour(juce::Colours::black.withAlpha(0.40f));
+    g.fillEllipse(shadow2);
 
-    juce::ColourGradient outerGrad(juce::Colour(0xFFF2F2F4), outerRect.getCentreX(), outerRect.getY(),
-                                   juce::Colour(0xFFC7C7CB), outerRect.getCentreX(), outerRect.getBottom(), false);
-    outerGrad.addColour(0.62, juce::Colour(0xFFD9D9DC));
-    g.setGradientFill(outerGrad);
-    g.fillEllipse(outerRect);
+    {
+        juce::ColourGradient outerGrad(juce::Colour(0xFFF5F5F6), outerRect.getCentreX(), outerRect.getY(),
+                                       juce::Colour(0xFFA9A9AD), outerRect.getCentreX(), outerRect.getBottom(), false);
+        outerGrad.addColour(0.38, juce::Colour(0xFFD7D7DA));
+        outerGrad.addColour(0.68, juce::Colour(0xFFBEBEC2));
+        g.setGradientFill(outerGrad);
+        g.fillEllipse(outerRect);
+    }
 
-    juce::ColourGradient topGrad(juce::Colour(0xFFE5E5E8), topRect.getCentreX(), topRect.getY(),
-                                 juce::Colour(0xFFC8C8CB), topRect.getCentreX(), topRect.getBottom(), false);
-    topGrad.addColour(0.72, juce::Colour(0xFFD7D7DA));
-    g.setGradientFill(topGrad);
-    g.fillEllipse(topRect);
+    const auto inner = outerRect.reduced(d * 0.11f);
 
-    g.setColour(juce::Colours::white.withAlpha(0.24f));
-    g.drawEllipse(outerRect.reduced(outerRect.getWidth() * 0.02f), outerRect.getWidth() * 0.012f);
+    {
+        juce::ColourGradient innerGrad(juce::Colour(0xFFE7E7EA), inner.getCentreX(), inner.getY(),
+                                       juce::Colour(0xFFC6C6CA), inner.getCentreX(), inner.getBottom(), false);
+        innerGrad.addColour(0.55, juce::Colour(0xFFD6D6DA));
+        g.setGradientFill(innerGrad);
+        g.fillEllipse(inner);
+    }
+
+    {
+        auto topLight = inner.withHeight(inner.getHeight() * 0.44f).translated(0.0f, inner.getHeight() * 0.02f);
+        juce::ColourGradient topGrad(juce::Colours::white.withAlpha(0.30f),
+                                     topLight.getCentreX(), topLight.getY(),
+                                     juce::Colours::transparentWhite,
+                                     topLight.getCentreX(), topLight.getBottom(), false);
+        g.setGradientFill(topGrad);
+        g.fillEllipse(topLight);
+    }
+
+    {
+        auto bottomShade = inner.withY(inner.getCentreY()).withHeight(inner.getHeight() * 0.40f);
+        juce::ColourGradient shadeGrad(juce::Colours::transparentBlack,
+                                       bottomShade.getCentreX(), bottomShade.getY(),
+                                       juce::Colours::black.withAlpha(0.14f),
+                                       bottomShade.getCentreX(), bottomShade.getBottom(), false);
+        g.setGradientFill(shadeGrad);
+        g.fillEllipse(bottomShade);
+    }
+
+    g.setColour(juce::Colours::white.withAlpha(0.30f));
+    g.drawEllipse(inner.reduced(d * 0.02f), 0.9f);
+
     g.setColour(juce::Colours::black.withAlpha(0.16f));
-    g.drawEllipse(topRect.reduced(topRect.getWidth() * 0.02f), topRect.getWidth() * 0.012f);
+    g.drawEllipse(outerRect.reduced(d * 0.01f), 1.0f);
 }
 
 static void fillCleanupTexture(juce::Graphics& g, const juce::Image& image,
@@ -837,20 +1018,606 @@ static void drawPatchFromImageWithBottomCurve(juce::Graphics& g, const juce::Ima
     g.restoreState();
 }
 
+static void drawPatchFromImageRounded(juce::Graphics& g, const juce::Image& sourceImage,
+                                      const juce::Rectangle<int>& sourceRef, const juce::Rectangle<float>& destArea,
+                                      int designW, int designH, float cornerRadius)
+{
+    if (! sourceImage.isValid())
+        return;
+
+    const float sx = sourceImage.getWidth() / (float) designW;
+    const float sy = sourceImage.getHeight() / (float) designH;
+    const juce::Rectangle<int> srcPx {
+        (int) std::round(sourceRef.getX() * sx),
+        (int) std::round(sourceRef.getY() * sy),
+        (int) std::round(sourceRef.getWidth() * sx),
+        (int) std::round(sourceRef.getHeight() * sy)
+    };
+
+    auto patch = sourceImage.getClippedImage(srcPx);
+    const float scaleX = destArea.getWidth() / (float) patch.getWidth();
+    const float scaleY = destArea.getHeight() / (float) patch.getHeight();
+    auto transform = juce::AffineTransform::scale(scaleX, scaleY)
+                        .translated(destArea.getX(), destArea.getY());
+
+    juce::Path clip;
+    clip.addRoundedRectangle(destArea, cornerRadius);
+    g.saveState();
+    g.reduceClipRegion(clip);
+    g.drawImageTransformed(patch, transform, false);
+    g.restoreState();
+}
+
+static void drawPatchFromImageEllipse(juce::Graphics& g, const juce::Image& sourceImage,
+                                      const juce::Rectangle<int>& sourceRef, const juce::Rectangle<float>& destArea,
+                                      int designW, int designH)
+{
+    if (! sourceImage.isValid())
+        return;
+
+    const float sx = sourceImage.getWidth() / (float) designW;
+    const float sy = sourceImage.getHeight() / (float) designH;
+    const juce::Rectangle<int> srcPx {
+        (int) std::round(sourceRef.getX() * sx),
+        (int) std::round(sourceRef.getY() * sy),
+        (int) std::round(sourceRef.getWidth() * sx),
+        (int) std::round(sourceRef.getHeight() * sy)
+    };
+
+    auto patch = sourceImage.getClippedImage(srcPx);
+    const float scaleX = destArea.getWidth() / (float) patch.getWidth();
+    const float scaleY = destArea.getHeight() / (float) patch.getHeight();
+    auto transform = juce::AffineTransform::scale(scaleX, scaleY)
+                        .translated(destArea.getX(), destArea.getY());
+
+    juce::Path clip;
+    clip.addEllipse(destArea);
+    g.saveState();
+    g.reduceClipRegion(clip);
+    g.drawImageTransformed(patch, transform, false);
+    g.restoreState();
+}
+
+// ============================================================================
+// SLIDER TRACK BODIES — covers static knobs from bg, draws CSS tracks
+// ============================================================================
+void ThreeVoicesAudioProcessorEditor::drawSliderTrackBodies(juce::Graphics& g)
+{
+    if (!bgStandard.isValid()) return;
+    const float us = juce::jmin(getWidth() / (float) designW, getHeight() / (float) designH);
+    const float designScreenTop = (getHeight() - designH * us) * 0.5f;
+    const float designScreenBot = designScreenTop + designH * us;
+    const juce::Colour chassisTop(0xFFC8C9CB);
+    const juce::Colour chassisBot(0xFFA6A7A9);
+
+    auto fillChassis = [&](juce::Rectangle<float> area)
+    {
+        juce::ColourGradient grad(chassisTop, area.getCentreX(), designScreenTop,
+                                  chassisBot, area.getCentreX(), designScreenBot, false);
+        g.setGradientFill(grad);
+        g.fillRect(area);
+    };
+
+    auto fillChassisRect = fillChassis;
+
+    auto fillChassisEllipse = [&](juce::Rectangle<float> area)
+    {
+        juce::ColourGradient grad(chassisTop, area.getCentreX(), designScreenTop,
+                                  chassisBot, area.getCentreX(), designScreenBot, false);
+        g.setGradientFill(grad);
+        g.fillEllipse(area);
+
+        g.setColour(juce::Colours::white.withAlpha(0.035f));
+        g.drawEllipse(area.reduced(0.5f), 0.8f);
+
+        g.setColour(juce::Colours::black.withAlpha(0.02f));
+        g.drawEllipse(area.reduced(1.0f), 0.8f);
+    };
+
+
+    {
+        auto leftVoiceCleanup = scaleRect(kLeftVoiceAreaCleanupRef).toFloat();
+        juce::ColourGradient cleanupGrad(chassisTop, leftVoiceCleanup.getCentreX(), designScreenTop,
+                                         chassisBot, leftVoiceCleanup.getCentreX(), designScreenBot, false);
+        g.setGradientFill(cleanupGrad);
+        g.fillRect(leftVoiceCleanup);
+    }
+
+
+        auto fillChassisRoundedPatch = [&](juce::Rectangle<float> area, float corner)
+    {
+        juce::ColourGradient grad(chassisTop, area.getCentreX(), designScreenTop,
+                                  chassisBot, area.getCentreX(), designScreenBot, false);
+        grad.addColour(0.52, juce::Colour(0xFFB8B9BB));
+        g.setGradientFill(grad);
+        g.fillRoundedRectangle(area, corner);
+
+        juce::ColourGradient leftMerge(juce::Colours::black.withAlpha(0.08f),
+                                       area.getX() + area.getWidth() * 0.12f, area.getCentreY(),
+                                       juce::Colours::transparentBlack,
+                                       area.getX() + area.getWidth() * 0.38f, area.getCentreY(),
+                                       false);
+        g.setGradientFill(leftMerge);
+        g.fillRoundedRectangle(area, corner);
+
+        juce::ColourGradient rightLift(juce::Colours::transparentWhite,
+                                       area.getX() + area.getWidth() * 0.55f, area.getCentreY(),
+                                       juce::Colours::white.withAlpha(0.025f),
+                                       area.getRight() - area.getWidth() * 0.10f, area.getCentreY(),
+                                       false);
+        g.setGradientFill(rightLift);
+        g.fillRoundedRectangle(area, corner);
+    };
+
+    // Helper: draw CSS vertical fader track, CLIPPED to coverRef
+    auto drawVerticalTrackClipped = [&](const juce::Rectangle<int>& faderRef,
+                                        const juce::Rectangle<int>& cutoutRef,
+                                        const juce::Rectangle<int>& clipRef)
+    {
+        auto clipArea = scaleRect(clipRef);
+        g.saveState();
+        g.reduceClipRegion(clipArea);
+
+        auto indent = scaleRect(faderRef).toFloat();
+        auto cutout = scaleRect(cutoutRef).toFloat();
+        float indentR = indent.getWidth() * 0.45f;
+        float cutoutR = cutout.getWidth() * 0.64f;
+
+        // Outer highlight (CSS: 3px 3px 2px rgba(255,255,255,0.8))
+        g.setColour(juce::Colours::white.withAlpha(0.45f));
+        g.fillRoundedRectangle(indent.translated(2.0f * us, 2.0f * us), indentR);
+        // Dark shadow (CSS: -1px -2px 2px 2px rgba(0,0,0,0.55))
+        g.setColour(juce::Colours::black.withAlpha(0.30f));
+        g.fillRoundedRectangle(indent.translated(-1.0f * us, -1.5f * us), indentR);
+
+        // Indent body
+        juce::ColourGradient indGrad(juce::Colour(0xFFBBBBBD), indent.getCentreX(), indent.getY(),
+                                     juce::Colour(0xFFB1B1B3), indent.getCentreX(), indent.getBottom(), false);
+        g.setGradientFill(indGrad);
+        g.fillRoundedRectangle(indent, indentR);
+
+        // Border
+        g.setColour(juce::Colours::black.withAlpha(0.32f));
+        g.drawRoundedRectangle(indent, indentR, us);
+
+        // Inset bottom shadow
+        {
+            auto shadowArea = indent.withTop(indent.getBottom() - 16.0f * us);
+            juce::ColourGradient shGrad(juce::Colours::transparentBlack, shadowArea.getCentreX(), shadowArea.getY(),
+                                        juce::Colours::black.withAlpha(0.50f), shadowArea.getCentreX(), shadowArea.getBottom(), false);
+            g.setGradientFill(shGrad);
+            juce::Path shPath;
+            shPath.addRoundedRectangle(shadowArea, indentR);
+            g.fillPath(shPath);
+        }
+        // Left highlight line
+        g.setColour(juce::Colours::white.withAlpha(0.30f));
+        g.drawLine(indent.getX() + 2.0f * us, indent.getY() + indentR,
+                   indent.getX() + 2.0f * us, indent.getBottom() - indentR, us * 1.2f);
+
+        // Cutout
+        g.setColour(juce::Colour(0xFF0F0F11));
+        g.fillRoundedRectangle(cutout, cutoutR);
+        g.setColour(juce::Colours::white.withAlpha(0.22f));
+        g.drawRoundedRectangle(cutout, cutoutR, us * 0.8f);
+        // Inset shadow
+        g.setColour(juce::Colours::black.withAlpha(0.40f));
+        g.drawLine(cutout.getX() + 2.0f * us, cutout.getY() + cutoutR,
+                   cutout.getX() + 2.0f * us, cutout.getY() + cutout.getHeight() * 0.25f, us * 1.2f);
+
+        g.restoreState();
+    };
+
+    auto drawVerticalTrackFull = [&](const juce::Rectangle<int>& faderRef,
+                                     const juce::Rectangle<int>& cutoutRef,
+                                     const juce::Rectangle<int>& cleanupRef,
+                                     const juce::Rectangle<int>& cleanupSampleRef,
+                                     bool drawCleanupPatch,
+                                     float bodyOffsetX,
+                                     float innerLaneOffsetX,
+                                     float exteriorShadowBottomTrim,
+                                     float darkBlurAlpha,
+                                     float lightBlurAlpha,
+                                     float outerHighlightAlpha,
+                                     float outerShadowAlpha,
+                                     float lowerShadowAlpha,
+                                     float cutoutLeftShadeAlpha,
+                                     float cutoutRightGlowAlpha,
+                                     float coreLeftAlpha,
+                                     float coreRightAlpha)
+    {
+        juce::ignoreUnused(cleanupSampleRef);
+        if (drawCleanupPatch)
+        {
+            auto cleanupArea = scaleRect(cleanupRef).toFloat();
+            fillCleanupTexture(g, sideFaderBottomCleanPatch, cleanupArea, cleanupArea.getWidth() * 0.46f);
+        }
+
+        auto indent = scaleRect(faderRef).toFloat().translated(bodyOffsetX * us, 0.0f);
+        auto cutout = scaleRect(cutoutRef).toFloat().translated(bodyOffsetX * us, 0.0f);
+        const float indentR = 64.0f * us;
+        const float cutoutR = 32.0f * us;
+
+        // CSS shadow rectangles 60 / 61
+        auto darkBlurRect = indent.withPosition(indent.getX() - 6.0f * us, indent.getY() - 23.0f * us)
+                                  .withSizeKeepingCentre(83.0f * us, 1606.0f * us);
+        auto lightBlurRect = indent.withPosition(indent.getX() - 10.0f * us, indent.getY() - 17.0f * us)
+                                   .withSizeKeepingCentre(108.0f * us, 1739.0f * us);
+        auto shadowClip = indent.expanded(18.0f * us, 18.0f * us);
+        if (exteriorShadowBottomTrim > 0.0f)
+            shadowClip.setBottom(shadowClip.getBottom() - exteriorShadowBottomTrim * us);
+
+        g.saveState();
+        g.reduceClipRegion(shadowClip.getSmallestIntegerContainer());
+        g.setColour(juce::Colour(0xFF636363).withAlpha(darkBlurAlpha));
+        g.fillRoundedRectangle(darkBlurRect, 64.0f * us);
+        g.setColour(juce::Colour(0xFFD9D8DB).withAlpha(lightBlurAlpha));
+        g.fillRoundedRectangle(lightBlurRect, 70.0f * us);
+        g.restoreState();
+
+        // Main indent shadows from CSS
+        g.setColour(juce::Colours::white.withAlpha(outerHighlightAlpha));
+        g.fillRoundedRectangle(indent.translated(3.0f * us, 3.0f * us), indentR);
+        g.setColour(juce::Colours::black.withAlpha(outerShadowAlpha));
+        g.fillRoundedRectangle(indent.translated(-1.0f * us, -2.0f * us), indentR);
+
+        juce::ColourGradient indGrad(juce::Colour(0xFFDADBDD), indent.getCentreX(), indent.getY(),
+                                     juce::Colour(0xFFC8C9CB), indent.getCentreX(), indent.getBottom(), false);
+        g.setGradientFill(indGrad);
+        g.fillRoundedRectangle(indent, indentR);
+
+        g.setColour(juce::Colours::black.withAlpha(0.32f));
+        g.drawRoundedRectangle(indent, indentR, us);
+
+        // inset -8px 4px bottom shadow
+        auto lowerShadowArea = indent.withTop(indent.getBottom() - 28.0f * us);
+        juce::ColourGradient lowerShadow(juce::Colours::transparentBlack, lowerShadowArea.getCentreX(), lowerShadowArea.getY(),
+                                         juce::Colours::black.withAlpha(lowerShadowAlpha), lowerShadowArea.getCentreX(), lowerShadowArea.getBottom(), false);
+        g.setGradientFill(lowerShadow);
+        g.fillRoundedRectangle(lowerShadowArea, indentR);
+
+        // inset -3 -3 2 white highlight
+        g.setColour(juce::Colours::white.withAlpha(0.26f));
+        g.drawLine(indent.getX() + 2.0f * us, indent.getY() + indentR,
+                   indent.getX() + 2.0f * us, indent.getBottom() - indentR, us * 1.0f);
+
+        g.setColour(juce::Colour(0xFF0F0F11));
+        g.fillRoundedRectangle(cutout, cutoutR);
+        g.setColour(juce::Colours::white.withAlpha(0.51f));
+        g.drawRoundedRectangle(cutout, cutoutR, us * 0.9f);
+
+        auto cutoutLeftShade = juce::Rectangle<float>(2.0f * us, cutout.getHeight() - 2.0f * us)
+                                   .withPosition(cutout.getX() + 2.0f * us, cutout.getY() + 1.0f * us);
+        auto cutoutRightGlow = juce::Rectangle<float>(2.0f * us, cutout.getHeight() - 2.0f * us)
+                                   .withPosition(cutout.getRight() - 4.0f * us, cutout.getY() + 1.0f * us);
+        g.setColour(juce::Colours::black.withAlpha(cutoutLeftShadeAlpha));
+        g.fillRoundedRectangle(cutoutLeftShade, cutoutLeftShade.getWidth() * 0.5f);
+        g.setColour(juce::Colours::white.withAlpha(cutoutRightGlowAlpha));
+        g.fillRoundedRectangle(cutoutRightGlow, cutoutRightGlow.getWidth() * 0.5f);
+
+        // Center the darker inner lane and keep its ends rounded so the top/bottom
+        // stay smooth instead of exposing a hard rectangular edge.
+        auto centreShadow = juce::Rectangle<float>(12.0f * us, cutout.getHeight() - 4.0f * us)
+                                .withCentre(cutout.getCentre())
+                                .translated(innerLaneOffsetX * us, 0.0f);
+        const float centreShadowR = centreShadow.getWidth() * 0.5f;
+
+        g.setColour(juce::Colour(0xFF0B0C0E));
+        g.fillRoundedRectangle(centreShadow, centreShadowR);
+
+        auto leftCore = juce::Rectangle<float>(4.0f * us, centreShadow.getHeight())
+                            .withPosition(centreShadow.getX(), centreShadow.getY());
+        auto rightRim = juce::Rectangle<float>(4.0f * us, centreShadow.getHeight())
+                            .withPosition(centreShadow.getRight() - 4.0f * us, centreShadow.getY());
+        g.setColour(juce::Colours::black.withAlpha(coreLeftAlpha));
+        g.fillRoundedRectangle(leftCore, leftCore.getWidth() * 0.5f);
+        g.setColour(juce::Colours::white.withAlpha(coreRightAlpha));
+        g.fillRoundedRectangle(rightRim, rightRim.getWidth() * 0.5f);
+
+    };
+
+    auto drawVerticalTrackFullSmall = [&](const juce::Rectangle<int>& faderRef,
+                                         const juce::Rectangle<int>& cutoutRef,
+                                         const juce::Rectangle<int>& cleanupRef,
+                                         bool drawCleanupPatch,
+                                         float bodyOffsetX,
+                                         float innerLaneOffsetX,
+                                         float darkBlurAlpha,
+                                         float lightBlurAlpha,
+                                         float outerHighlightAlpha,
+                                         float outerShadowAlpha,
+                                         float lowerShadowAlpha,
+                                         float cutoutLeftShadeAlpha,
+                                         float cutoutRightGlowAlpha,
+                                         float coreLeftAlpha,
+                                         float coreRightAlpha)
+    {
+        if (drawCleanupPatch)
+        {
+            auto cleanupArea = scaleRect(cleanupRef).toFloat();
+
+            juce::ColourGradient cleanupGrad(chassisTop, cleanupArea.getCentreX(), designScreenTop,
+                                             chassisBot, cleanupArea.getCentreX(), designScreenBot, false);
+            g.setGradientFill(cleanupGrad);
+            g.fillEllipse(cleanupArea);
+        }
+
+        auto indent = scaleRect(faderRef).toFloat().translated(bodyOffsetX * us, 0.0f);
+        auto cutout = scaleRect(cutoutRef).toFloat().translated(bodyOffsetX * us, 0.0f);
+
+        const float indentR = indent.getWidth() * 0.46f;
+        const float cutoutR = cutout.getWidth() * 0.62f;
+
+        auto darkBlurRect = indent.expanded(6.0f * us, 10.0f * us).translated(-2.0f * us, -3.0f * us);
+        auto lightBlurRect = indent.expanded(10.0f * us, 14.0f * us).translated(-3.0f * us, -2.0f * us);
+
+        g.saveState();
+        g.reduceClipRegion(indent.expanded(18.0f * us, 18.0f * us).getSmallestIntegerContainer());
+        g.setColour(juce::Colour(0xFF636363).withAlpha(darkBlurAlpha));
+        g.fillRoundedRectangle(darkBlurRect, darkBlurRect.getWidth() * 0.46f);
+        g.setColour(juce::Colour(0xFFD9D8DB).withAlpha(lightBlurAlpha));
+        g.fillRoundedRectangle(lightBlurRect, lightBlurRect.getWidth() * 0.48f);
+        g.restoreState();
+
+        g.setColour(juce::Colours::white.withAlpha(outerHighlightAlpha));
+        g.fillRoundedRectangle(indent.translated(2.0f * us, 2.0f * us), indentR);
+
+        g.setColour(juce::Colours::black.withAlpha(outerShadowAlpha));
+        g.fillRoundedRectangle(indent.translated(-1.0f * us, -1.5f * us), indentR);
+
+        juce::ColourGradient indGrad(juce::Colour(0xFFDADBDD), indent.getCentreX(), indent.getY(),
+                                     juce::Colour(0xFFC8C9CB), indent.getCentreX(), indent.getBottom(), false);
+        g.setGradientFill(indGrad);
+        g.fillRoundedRectangle(indent, indentR);
+
+        g.setColour(juce::Colours::black.withAlpha(0.30f));
+        g.drawRoundedRectangle(indent, indentR, us * 0.8f);
+
+        auto lowerShadowArea = indent.withTop(indent.getBottom() - 18.0f * us);
+        juce::ColourGradient lowerShadow(juce::Colours::transparentBlack,
+                                         lowerShadowArea.getCentreX(), lowerShadowArea.getY(),
+                                         juce::Colours::black.withAlpha(lowerShadowAlpha),
+                                         lowerShadowArea.getCentreX(), lowerShadowArea.getBottom(), false);
+        g.setGradientFill(lowerShadow);
+        g.fillRoundedRectangle(lowerShadowArea, indentR);
+
+        g.setColour(juce::Colours::white.withAlpha(0.22f));
+        g.drawLine(indent.getX() + 1.5f * us, indent.getY() + indentR,
+                   indent.getX() + 1.5f * us, indent.getBottom() - indentR, us * 0.9f);
+
+        g.setColour(juce::Colour(0xFF0F0F11));
+        g.fillRoundedRectangle(cutout, cutoutR);
+
+        g.setColour(juce::Colours::white.withAlpha(0.42f));
+        g.drawRoundedRectangle(cutout, cutoutR, us * 0.75f);
+
+        auto cutoutLeftShade = juce::Rectangle<float>(1.5f * us, cutout.getHeight() - 2.0f * us)
+                                   .withPosition(cutout.getX() + 1.5f * us, cutout.getY() + 1.0f * us);
+        auto cutoutRightGlow = juce::Rectangle<float>(1.5f * us, cutout.getHeight() - 2.0f * us)
+                                   .withPosition(cutout.getRight() - 3.0f * us, cutout.getY() + 1.0f * us);
+
+        g.setColour(juce::Colours::black.withAlpha(cutoutLeftShadeAlpha));
+        g.fillRoundedRectangle(cutoutLeftShade, cutoutLeftShade.getWidth() * 0.5f);
+
+        g.setColour(juce::Colours::white.withAlpha(cutoutRightGlowAlpha));
+        g.fillRoundedRectangle(cutoutRightGlow, cutoutRightGlow.getWidth() * 0.5f);
+
+        auto centreShadow = juce::Rectangle<float>(8.0f * us, cutout.getHeight() - 4.0f * us)
+                                .withCentre(cutout.getCentre())
+                                .translated(innerLaneOffsetX * us, 0.0f);
+        const float centreShadowR = centreShadow.getWidth() * 0.5f;
+
+        g.setColour(juce::Colour(0xFF0B0C0E));
+        g.fillRoundedRectangle(centreShadow, centreShadowR);
+
+        auto leftCore = juce::Rectangle<float>(2.5f * us, centreShadow.getHeight())
+                            .withPosition(centreShadow.getX(), centreShadow.getY());
+        auto rightRim = juce::Rectangle<float>(2.5f * us, centreShadow.getHeight())
+                            .withPosition(centreShadow.getRight() - 2.5f * us, centreShadow.getY());
+
+        g.setColour(juce::Colours::black.withAlpha(coreLeftAlpha));
+        g.fillRoundedRectangle(leftCore, leftCore.getWidth() * 0.5f);
+
+        g.setColour(juce::Colours::white.withAlpha(coreRightAlpha));
+        g.fillRoundedRectangle(rightRim, rightRim.getWidth() * 0.5f);
+    };
+
+    auto drawHorizontalTrackFull = [&](const juce::Rectangle<int>& faderRef,
+                                       const juce::Rectangle<int>& cutoutRef,
+                                       const juce::Rectangle<int>& cleanupRef,
+                                       bool drawCleanupPatch,
+                                       float bodyOffsetY,
+                                       float innerLaneOffsetY,
+                                       float darkBlurAlpha,
+                                       float lightBlurAlpha,
+                                       float outerHighlightAlpha,
+                                       float outerShadowAlpha,
+                                       float cutoutTopShadeAlpha,
+                                       float cutoutBottomGlowAlpha,
+                                       float coreTopAlpha,
+                                       float coreBottomAlpha)
+    {
+        if (drawCleanupPatch)
+        {
+            auto cleanupArea = scaleRect(cleanupRef).toFloat();
+            juce::ColourGradient cleanupGrad(chassisTop, cleanupArea.getCentreX(), designScreenTop,
+                                             chassisBot, cleanupArea.getCentreX(), designScreenBot, false);
+            g.setGradientFill(cleanupGrad);
+            g.fillEllipse(cleanupArea);
+        }
+
+        auto indent = scaleRect(faderRef).toFloat().translated(0.0f, bodyOffsetY * us);
+        auto cutout = scaleRect(cutoutRef).toFloat().translated(0.0f, bodyOffsetY * us);
+
+        const float indentR = indent.getHeight() * 0.46f;
+        const float cutoutR = cutout.getHeight() * 0.62f;
+
+        auto darkBlurRect = indent.expanded(10.0f * us, 6.0f * us).translated(-2.0f * us, -2.0f * us);
+        auto lightBlurRect = indent.expanded(14.0f * us, 9.0f * us).translated(-1.0f * us, -2.0f * us);
+
+        g.saveState();
+        g.reduceClipRegion(indent.expanded(18.0f * us, 18.0f * us).getSmallestIntegerContainer());
+        g.setColour(juce::Colour(0xFF636363).withAlpha(darkBlurAlpha));
+        g.fillRoundedRectangle(darkBlurRect, darkBlurRect.getHeight() * 0.46f);
+        g.setColour(juce::Colour(0xFFD9D8DB).withAlpha(lightBlurAlpha));
+        g.fillRoundedRectangle(lightBlurRect, lightBlurRect.getHeight() * 0.48f);
+        g.restoreState();
+
+        g.setColour(juce::Colours::white.withAlpha(outerHighlightAlpha));
+        g.fillRoundedRectangle(indent.translated(2.0f * us, 2.0f * us), indentR);
+
+        g.setColour(juce::Colours::black.withAlpha(outerShadowAlpha));
+        g.fillRoundedRectangle(indent.translated(-1.0f * us, -1.2f * us), indentR);
+
+        juce::ColourGradient indGrad(juce::Colour(0xFFDADBDD), indent.getX(), indent.getCentreY(),
+                                     juce::Colour(0xFFC8C9CB), indent.getRight(), indent.getCentreY(), false);
+        g.setGradientFill(indGrad);
+        g.fillRoundedRectangle(indent, indentR);
+
+        g.setColour(juce::Colours::black.withAlpha(0.30f));
+        g.drawRoundedRectangle(indent, indentR, us * 0.8f);
+
+        g.setColour(juce::Colour(0xFF0F0F11));
+        g.fillRoundedRectangle(cutout, cutoutR);
+
+        g.setColour(juce::Colours::white.withAlpha(0.42f));
+        g.drawRoundedRectangle(cutout, cutoutR, us * 0.75f);
+
+        auto cutoutTopShade = juce::Rectangle<float>(cutout.getWidth() - 2.0f * us, 1.5f * us)
+                                  .withPosition(cutout.getX() + 1.0f * us, cutout.getY() + 1.0f * us);
+        auto cutoutBottomGlow = juce::Rectangle<float>(cutout.getWidth() - 2.0f * us, 1.5f * us)
+                                    .withPosition(cutout.getX() + 1.0f * us, cutout.getBottom() - 2.5f * us);
+
+        g.setColour(juce::Colours::black.withAlpha(cutoutTopShadeAlpha));
+        g.fillRoundedRectangle(cutoutTopShade, cutoutTopShade.getHeight() * 0.5f);
+
+        g.setColour(juce::Colours::white.withAlpha(cutoutBottomGlowAlpha));
+        g.fillRoundedRectangle(cutoutBottomGlow, cutoutBottomGlow.getHeight() * 0.5f);
+
+        auto centreShadow = juce::Rectangle<float>(cutout.getWidth() - 4.0f * us, 8.0f * us)
+                                .withCentre(cutout.getCentre())
+                                .translated(0.0f, innerLaneOffsetY * us);
+        const float centreShadowR = centreShadow.getHeight() * 0.5f;
+
+        g.setColour(juce::Colour(0xFF0B0C0E));
+        g.fillRoundedRectangle(centreShadow, centreShadowR);
+
+        auto topCore = juce::Rectangle<float>(centreShadow.getWidth(), 2.5f * us)
+                           .withPosition(centreShadow.getX(), centreShadow.getY());
+        auto bottomRim = juce::Rectangle<float>(centreShadow.getWidth(), 2.5f * us)
+                             .withPosition(centreShadow.getX(), centreShadow.getBottom() - 2.5f * us);
+
+        g.setColour(juce::Colours::black.withAlpha(coreTopAlpha));
+        g.fillRoundedRectangle(topCore, topCore.getHeight() * 0.5f);
+
+        g.setColour(juce::Colours::white.withAlpha(coreBottomAlpha));
+        g.fillRoundedRectangle(bottomRim, bottomRim.getHeight() * 0.5f);
+    };
+
+    // Helper: draw CSS horizontal fader track, CLIPPED to coverRef
+    auto drawHorizontalTrackClipped = [&](const juce::Rectangle<int>& faderRef,
+                                          const juce::Rectangle<int>& cutoutRef,
+                                          const juce::Rectangle<int>& clipRef)
+    {
+        auto clipArea = scaleRect(clipRef);
+        g.saveState();
+        g.reduceClipRegion(clipArea);
+
+        auto indent = scaleRect(faderRef).toFloat();
+        auto cutout = scaleRect(cutoutRef).toFloat();
+        float indentR = indent.getHeight() * 0.45f;
+        float cutoutR = cutout.getHeight() * 0.64f;
+
+        g.setColour(juce::Colours::white.withAlpha(0.45f));
+        g.fillRoundedRectangle(indent.translated(2.0f * us, 2.0f * us), indentR);
+        g.setColour(juce::Colours::black.withAlpha(0.20f));
+        g.fillRoundedRectangle(indent.translated(-1.0f * us, -1.5f * us), indentR);
+
+        juce::ColourGradient indGrad(juce::Colour(0xFFBBBBBD), indent.getX(), indent.getCentreY(),
+                                     juce::Colour(0xFFB1B1B3), indent.getRight(), indent.getCentreY(), false);
+        g.setGradientFill(indGrad);
+        g.fillRoundedRectangle(indent, indentR);
+        g.setColour(juce::Colours::black.withAlpha(0.32f));
+        g.drawRoundedRectangle(indent, indentR, us);
+
+        g.setColour(juce::Colour(0xFF0F0F11));
+        g.fillRoundedRectangle(cutout, cutoutR);
+        g.setColour(juce::Colours::white.withAlpha(0.22f));
+        g.drawRoundedRectangle(cutout, cutoutR, us * 0.8f);
+
+        g.restoreState();
+    };
+
+    // --- Cover static knobs and redraw only overlapping track portions ---
+
+    // Left/right big faders: redraw full body from CSS instead of moving cleanup covers.
+    drawVerticalTrackFull(kLeftFaderRef, kLeftFaderCutoutRef,
+                          kLeftFaderBottomCleanupRef,
+                          kLeftFaderBottomCleanupSampleRef,
+                          true,
+                          0.0f, 0.0f, 0.0f,
+                          0.06f, 0.08f, 0.55f, 0.45f,
+                          0.00f, 0.00f, 0.00f, 0.00f, 0.00f);
+    {
+        auto blobCoverArea = scaleRect(kRightFaderBottomBlobCoverRef).toFloat();
+        blobCoverArea = blobCoverArea.translated(-2.0f * us, 4.0f * us);
+        fillChassisBlendPatch(g, blobCoverArea, designScreenTop, designScreenBot);
+    }
+    drawVerticalTrackFull(kRightFaderRef, kRightFaderCutoutRef,
+                          kRightFaderBottomCleanupRef,
+                          kRightFaderBottomCleanupSampleRef,
+                          true,
+                          0.0f, 0.0f, 0.0f,
+                          0.06f, 0.08f, 0.55f, 0.45f,
+                          0.00f, 0.00f, 0.00f, 0.00f, 0.00f);
+
+    {
+        auto belowCleanupArea = scaleRect(kRightFaderBelowCleanupRef).toFloat();
+        fillCleanupTexture(g, sideFaderBottomCleanPatch, belowCleanupArea, belowCleanupArea.getHeight() * 0.45f);
+    }
+    // ── DISTORTION FADERS — background blend + clipped track ─────────────────
+    for (int i = 0; i < 3; ++i)
+    {
+        drawVerticalTrackFullSmall(kDistortionFaderRefs[(size_t)i],
+                                   kDistortionCutoutRefs[(size_t)i],
+                                   kDistKnobCoverRefs[(size_t)i],
+                                   false,
+                                   0.0f,   // bodyOffsetX
+                                   0.0f,   // innerLaneOffsetX
+                                   0.05f,  // darkBlurAlpha
+                                   0.07f,  // lightBlurAlpha
+                                   0.42f,  // outerHighlightAlpha
+                                   0.30f,  // outerShadowAlpha
+                                   0.22f,  // lowerShadowAlpha
+                                   0.26f,  // cutoutLeftShadeAlpha
+                                   0.14f,  // cutoutRightGlowAlpha
+                                   0.18f,  // coreLeftAlpha
+                                   0.10f); // coreRightAlpha
+    }
+
+    // ── WIDTH SLIDER — background blend + clipped track ───────────────────────
+    drawHorizontalTrackFull(kWidthFaderRef,
+                            kWidthCutoutRef,
+                            kWidthKnobCoverRef,
+                            false,
+                            0.0f,   // bodyOffsetY
+                            0.0f,   // innerLaneOffsetY
+                            0.05f,  // darkBlurAlpha
+                            0.07f,  // lightBlurAlpha
+                            0.42f,  // outerHighlightAlpha
+                            0.24f,  // outerShadowAlpha
+                            0.24f,  // cutoutTopShadeAlpha
+                            0.12f,  // cutoutBottomGlowAlpha
+                            0.18f,  // coreTopAlpha
+                            0.10f); // coreBottomAlpha
+    }
+
 // ============================================================================
 // SIDE FADER THUMBS — single green sphere, moveable
 // ============================================================================
 void ThreeVoicesAudioProcessorEditor::drawSideFaderHandles(juce::Graphics& g)
 {
     const float us = juce::jmin(getWidth() / (float) designW, getHeight() / (float) designH);
-    auto drawPatch = [this, &g, us](const juce::Rectangle<int>& srcRef, const juce::Rectangle<float>& dstArea)
-    {
-        drawPatchFromImageWithBottomCurve(g, bgStandard, srcRef, dstArea, designW, designH, 26.0f * us);
-    };
-
-    drawPatch(kLeftFaderStraightPatchRef, scaleRect(kLeftFaderBottomPatchRef).toFloat());
-    drawPatch(kRightFaderStraightPatchRef, scaleRect(kRightFaderBottomPatchRef).toFloat());
-
     auto draw = [&](const juce::Slider& s, const juce::Rectangle<int>& cutoutRef)
     {
         const auto lane = scaleRect(cutoutRef).toFloat();
@@ -863,6 +1630,7 @@ void ThreeVoicesAudioProcessorEditor::drawSideFaderHandles(juce::Graphics& g)
         const float cy   = juce::jmap(t, lane.getBottom() - drawHalfD, lane.getY() + drawHalfD);
         const auto  knob = juce::Rectangle<float>(drawD, drawD)
                                .withCentre({ lane.getCentreX(), cy });
+
         drawGreenFaderKnob(g, knob);
     };
 
@@ -880,7 +1648,7 @@ void ThreeVoicesAudioProcessorEditor::drawSingleRotaryKnobOverlay(
     juce::Graphics& g, const juce::Slider& slider,
     const juce::Rectangle<int>& /*unused*/, bool isGreen, float /*unused*/)
 {
-    const auto  area = slider.getBounds().toFloat();
+    const auto area = slider.getBounds().toFloat();
     const float minV = (float) slider.getMinimum();
     const float maxV = (float) slider.getMaximum();
     const float norm = juce::jlimit(0.0f, 1.0f,
@@ -889,84 +1657,42 @@ void ThreeVoicesAudioProcessorEditor::drawSingleRotaryKnobOverlay(
     const float fullR  = juce::jmin(area.getWidth(), area.getHeight()) * 0.5f;
     const auto  centre = area.getCentre();
 
-    // Keep the cap close to the original inner-dome size.
-    const float capR = fullR * 0.515f;
+    const float capR = fullR * 0.47f;
+    const juce::Rectangle<float> capRect(centre.x - capR, centre.y - capR, capR * 2.0f, capR * 2.0f);
+
+    auto shadow = capRect.translated(fullR * 0.03f, fullR * 0.08f)
+                         .withSizeKeepingCentre(capRect.getWidth() * 0.92f, capRect.getHeight() * 0.38f);
+    g.setColour(juce::Colours::black.withAlpha(0.18f));
+    g.fillEllipse(shadow);
 
     if (isGreen)
     {
-        juce::ColourGradient grad(juce::Colour(0xFF56C97D),
-                                  centre.x, centre.y - capR,
-                                  juce::Colour(0xFF45B66B),
-                                  centre.x, centre.y + capR, false);
-        grad.addColour(0.75, juce::Colour(0xFF40AF66));
+        juce::ColourGradient grad(juce::Colour(0xFF69D68A), centre.x, capRect.getY(),
+                                  juce::Colour(0xFF2E9D56), centre.x, capRect.getBottom(), false);
+        grad.addColour(0.50, juce::Colour(0xFF47B96C));
         g.setGradientFill(grad);
-        g.fillEllipse(centre.x - capR, centre.y - capR, capR * 2.0f, capR * 2.0f);
-
-        for (int i = 0; i < 16; ++i)
-        {
-            const float arcT = i / 15.0f;
-            const float arcAngle = juce::degreesToRadians(208.0f + 88.0f * arcT);
-            const float notchR = capR * 0.92f;
-            const float notchSize = capR * 0.060f;
-            const float nx = centre.x + std::cos(arcAngle) * notchR;
-            const float ny = centre.y + std::sin(arcAngle) * notchR;
-            g.setColour(juce::Colours::black.withAlpha(0.11f));
-            g.fillEllipse(nx - notchSize, ny - notchSize * 0.72f, notchSize * 2.0f, notchSize * 1.35f);
-            g.setColour(juce::Colours::white.withAlpha(0.12f));
-            g.drawEllipse(nx - notchSize * 0.72f, ny - notchSize * 0.48f,
-                          notchSize * 1.44f, notchSize * 0.92f, 0.45f);
-        }
-
-        g.setColour(juce::Colours::white.withAlpha(0.16f));
-        g.drawEllipse(centre.x - capR * 0.93f, centre.y - capR * 0.93f,
-                      capR * 1.86f, capR * 1.86f, 0.55f);
-        g.setColour(juce::Colours::black.withAlpha(0.12f));
-        g.drawEllipse(centre.x - capR, centre.y - capR, capR * 2.0f, capR * 2.0f, 0.8f);
+        g.fillEllipse(capRect);
     }
     else
     {
-        juce::ColourGradient grad(juce::Colour(0xFFD9D9DC),
-                                  centre.x, centre.y - capR,
-                                  juce::Colour(0xFFC7C7CA),
-                                  centre.x, centre.y + capR, false);
-        grad.addColour(0.78, juce::Colour(0xFFC3C3C7));
+        juce::ColourGradient grad(juce::Colour(0xFFE9E9EB), centre.x, capRect.getY(),
+                                  juce::Colour(0xFFC2C2C6), centre.x, capRect.getBottom(), false);
+        grad.addColour(0.52, juce::Colour(0xFFD3D3D7));
         g.setGradientFill(grad);
-        g.fillEllipse(centre.x - capR, centre.y - capR, capR * 2.0f, capR * 2.0f);
-
-        for (int i = 0; i < 24; ++i)
-        {
-            const float arcT = i / 23.0f;
-            const float arcAngle = juce::degreesToRadians(158.0f + 224.0f * arcT);
-            const float notchR = capR * 0.98f;
-            const float notchSize = capR * 0.038f;
-            const float nx = centre.x + std::cos(arcAngle) * notchR;
-            const float ny = centre.y + std::sin(arcAngle) * notchR;
-            g.setColour(juce::Colours::black.withAlpha(0.10f));
-            g.fillEllipse(nx - notchSize, ny - notchSize * 0.72f, notchSize * 2.0f, notchSize * 1.35f);
-            g.setColour(juce::Colours::white.withAlpha(0.16f));
-            g.drawEllipse(nx - notchSize * 0.72f, ny - notchSize * 0.48f,
-                          notchSize * 1.44f, notchSize * 0.92f, 0.45f);
-        }
-
-        g.setColour(juce::Colours::white.withAlpha(0.12f));
-        g.drawEllipse(centre.x - capR * 0.93f, centre.y - capR * 0.93f,
-                      capR * 1.86f, capR * 1.86f, 0.55f);
-        g.setColour(juce::Colours::black.withAlpha(0.10f));
-        g.drawEllipse(centre.x - capR, centre.y - capR, capR * 2.0f, capR * 2.0f, 0.8f);
+        g.fillEllipse(capRect);
     }
 
-    // ── Indicator dot ────────────────────────────────────────────────────────
     const float startAngle = juce::degreesToRadians(225.0f);
     const float endAngle   = juce::degreesToRadians(495.0f);
     const float angle      = juce::jmap(norm, startAngle, endAngle);
-    const float dotOrbit   = capR * 0.74f;
-    const float dotR       = capR * 0.052f;
+    const float dotOrbit = capR * 0.78f;
+    const float dotR = capR * 0.06f;
     const float dotX       = centre.x + std::cos(angle - juce::MathConstants<float>::halfPi) * dotOrbit;
     const float dotY       = centre.y + std::sin(angle - juce::MathConstants<float>::halfPi) * dotOrbit;
 
-    g.setColour(juce::Colours::black.withAlpha(0.35f));
-    g.fillEllipse(dotX - dotR + 0.4f, dotY - dotR + 0.6f, dotR*2.0f, dotR*2.0f);
-    g.setColour(isGreen ? juce::Colour(0xFF0B2E16) : juce::Colour(0xFF1A1A1A));
+    g.setColour(juce::Colours::black.withAlpha(0.28f));
+    g.fillEllipse(dotX - dotR + 0.6f, dotY - dotR + 0.8f, dotR * 2.0f, dotR * 2.0f);
+    g.setColour(juce::Colour(0xFF5D5D60));
     g.fillEllipse(dotX - dotR, dotY - dotR, dotR*2.0f, dotR*2.0f);
 }
 
@@ -991,25 +1717,30 @@ void ThreeVoicesAudioProcessorEditor::drawDistortionSliderHandles(juce::Graphics
     const float us = juce::jmin(getWidth() / (float) designW, getHeight() / (float) designH);
     const float outerSize = kSmallFaderKnobOuterSize * us;
     const float halfSize = outerSize * 0.5f;
-    auto drawCleanup = [this, &g](const juce::Rectangle<int>& dstRef, float radiusScale)
-    {
-        const auto dst = scaleRect(dstRef).toFloat();
-        fillCleanupTexture(g, sideFaderBottomCleanPatch, dst,
-                           juce::jmin(dst.getWidth(), dst.getHeight()) * radiusScale);
-    };
 
     for (int i = 0; i < 3; ++i)
     {
-        const auto& s    = rows[i].distortionSlider;
-        const auto  cutout = scaleRect(kDistortionCutoutRefs[(size_t) i]).toFloat();
+        const auto& s = rows[i].distortionSlider;
+        const auto travel = scaleRect(kDistortionTravelRefs[(size_t) i]).toFloat();
+        const auto cutout = scaleRect(kDistortionCutoutRefs[(size_t) i]).toFloat();
+
         const float minV = (float) s.getMinimum();
         const float maxV = (float) s.getMaximum();
-        const float t    = juce::jlimit(0.0f, 1.0f,
-                               ((float)s.getValue() - minV) / juce::jmax(0.0001f, maxV - minV));
-        drawCleanup(kDistortionCleanupRefs[(size_t) i], 0.42f);
-        const float cy   = juce::jmap(t, cutout.getBottom() - halfSize, cutout.getY() + halfSize);
-        const auto  knob = juce::Rectangle<float>(outerSize, outerSize)
-                               .withCentre(juce::Point<float>(cutout.getCentreX(), cy));
+        const float t = juce::jlimit(0.0f, 1.0f,
+            ((float) s.getValue() - minV) / juce::jmax(0.0001f, maxV - minV));
+
+        const float topCy = cutout.getY() + halfSize;
+        const float bottomCy = cutout.getBottom() - halfSize;
+        const float cy = juce::jmap(t, bottomCy, topCy);
+
+        // moved right and slightly down
+        const auto thumbOffset = kDistortionThumbOffset[(size_t) i];
+        const float cx = cutout.getCentreX() + thumbOffset.x * us;
+        const float finalCy = cy + thumbOffset.y * us;
+
+        const auto knob = juce::Rectangle<float>(outerSize, outerSize)
+                              .withCentre({ cx, finalCy });
+
         drawSilverFaderKnob(g, knob);
     }
 }
@@ -1021,27 +1752,26 @@ void ThreeVoicesAudioProcessorEditor::drawDistortionSliderHandles(juce::Graphics
 // ============================================================================
 void ThreeVoicesAudioProcessorEditor::drawWidthSliderOverlay(juce::Graphics& g)
 {
-    const float us = juce::jmin(getWidth() / (float) designW, getHeight() / (float) designH);
+    const float us = juce::jmin(getWidth() / (float) designW,
+                                getHeight() / (float) designH);
     const float outerSize = kSmallFaderKnobOuterSize * us;
-    const float halfW    = outerSize * 0.5f;
-    auto drawCleanup = [this, &g](const juce::Rectangle<int>& dstRef, float radiusScale)
-    {
-        const auto dst = scaleRect(dstRef).toFloat();
-        fillCleanupTexture(g, sideFaderBottomCleanPatch, dst,
-                           juce::jmin(dst.getWidth(), dst.getHeight()) * radiusScale);
-    };
+    const float halfSize = outerSize * 0.5f;
 
-    const float minV  = (float) widthSlider.getMinimum();
-    const float maxV  = (float) widthSlider.getMaximum();
-    const float t     = juce::jlimit(0.0f, 1.0f,
-                             ((float)widthSlider.getValue() - minV) / juce::jmax(0.0001f, maxV - minV));
+    const float t = juce::jlimit(0.0f, 1.0f,
+        ((float) widthSlider.getValue() - (float) widthSlider.getMinimum()) /
+        juce::jmax(0.0001f,
+            (float) widthSlider.getMaximum() - (float) widthSlider.getMinimum()));
 
-    const auto cutout = scaleRect(kWidthInnerTrackRef).toFloat();
-    const float cx = juce::jmap(t, cutout.getX() + halfW, cutout.getRight() - halfW);
-    drawCleanup(kWidthThumbCleanupRef, 0.38f);
-    const auto knob = juce::Rectangle<float>(outerSize, outerSize)
-                         .withCentre(juce::Point<float>(cx, cutout.getCentreY()));
-    drawSilverFaderKnob(g, knob);
+    const auto cutout = scaleRect(kWidthCutoutRef).toFloat();
+
+    const float leftCx  = cutout.getX() + halfSize;
+    const float rightCx = cutout.getRight() - halfSize;
+
+    const float cx = juce::jmap(t, leftCx, rightCx) + kWidthThumbOffset.x * us;
+    const float cy = cutout.getCentreY() + kWidthThumbOffset.y * us;
+
+    drawSilverFaderKnob(g,
+        juce::Rectangle<float>(outerSize, outerSize).withCentre({ cx, cy }));
 }
 
 // ============================================================================
@@ -1063,8 +1793,13 @@ bool ThreeVoicesAudioProcessorEditor::advanceFallbackAnimationFrame()
 // ============================================================================
 juce::Slider* ThreeVoicesAudioProcessorEditor::findLinearSliderAt(juce::Point<int> pos)
 {
-    for (auto& row : rows)
-        if (row.distortionSlider.getBounds().contains(pos)) return &row.distortionSlider;
+    for (int i = 0; i < 3; ++i)
+    {
+        auto hit = scaleRect(kDistortionTravelRefs[(size_t) i]);
+        hit = applyRectAdjust(hit, kDistortionSliderBoundsAdjust[(size_t) i]);
+        if (hit.contains(pos))
+            return &rows[(size_t) i].distortionSlider;
+    }
     if (widthSlider.getBounds().contains(pos))      return &widthSlider;
     if (inputGainSlider.getBounds().contains(pos))  return &inputGainSlider;
     if (outputGainSlider.getBounds().contains(pos)) return &outputGainSlider;
@@ -1125,19 +1860,22 @@ void ThreeVoicesAudioProcessorEditor::resized()
         row.depthKnob.setBounds        (scaleRect({ 1416, knobRowY[i],   304, 304 }));
 
         // Distortion: component centred on visual track (shifted left with knobs)
-        row.distortionSlider.setBounds (scaleRect({ 1818, knobRowY[i],   160, 312 }));
-
+        auto distBounds = scaleRect(kDistortionTravelRefs[i]);
+        distBounds = applyRectAdjust(distBounds, kDistortionSliderBoundsAdjust[(size_t) i]);
+        row.distortionSlider.setBounds(distBounds);
         row.bitButton.setBounds        (scaleRect({ 1988, bitY[i],       171,  70 }));
         row.tubeButton.setBounds       (scaleRect({ 1988, tubeY[i],      171,  70 }));
     }
 
     // Width: shifted left ~40 dp and up ~30 dp
-    widthSlider.setBounds      (scaleRect({ 2255, 1523,  355, 134  }));
+    auto widthBounds = scaleRect(kWidthCutoutRef);
+    widthBounds = applyRectAdjust(widthBounds, kWidthSliderBoundsAdjust);
+    widthSlider.setBounds(widthBounds);
 
     // Mix knob: shifted left ~100 dp to align over ring in bg
     mixKnob.setBounds          (scaleRect({ 2618, 1451,  315, 315  }));
     inputGainSlider.setBounds  (scaleRect({   38,  167,  244, 1618 }));
-    outputGainSlider.setBounds (scaleRect({ 2984,  167,  244, 1618 }));
+    outputGainSlider.setBounds (scaleRect({ 2800,  167,  344, 1618 }));
     presetButton.setBounds     (scaleRect(kPresetOpenRef));
     previousPresetButton.setBounds(scaleRect(kPresetPrevRef));
     nextPresetButton.setBounds (scaleRect(kPresetNextRef));

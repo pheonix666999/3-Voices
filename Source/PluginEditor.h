@@ -86,6 +86,7 @@ private:
     juce::String getCurrentPresetName() const;
     void drawPresetDisplay(juce::Graphics& g);
     void drawToggleOverlays(juce::Graphics& g);
+    void drawSliderTrackBodies(juce::Graphics& g);
     void drawSideFaderHandles(juce::Graphics& g);
     void drawDistortionSliderHandles(juce::Graphics& g);
     void drawWidthSliderOverlay(juce::Graphics& g);
@@ -129,7 +130,6 @@ private:
     juce::Image leftSideFaderSprite;
     juce::Image rightSideFaderSprite;
     juce::Image sideFaderBottomCleanPatch;
-    juce::Image sideFaderThumb;       // grip image drawn as the fader thumb
 
     std::array<RowControls, 3> rows;
 

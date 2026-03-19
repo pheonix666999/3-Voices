@@ -163,21 +163,34 @@ void UnisonLookAndFeel::drawLinearSlider(juce::Graphics& g,
 
     if (style == juce::Slider::LinearHorizontal)
     {
-        // Width slider: draw a clean rounded slot and constrain thumb inside end caps.
+        // Width slider: CSS-accurate cutout slot + constrain thumb
+        // CSS Cutout: background: #0F0F11; border: 1px solid rgba(255,255,255,0.51);
+        //             box-shadow: inset 2px 2px 2px rgba(0,0,0,0.65); border-radius: 32px;
         const float thumbD = juce::jmax(20.0f, b.getHeight() * 0.46f);
-        const float railH = juce::jmax(12.0f, b.getHeight() * 0.20f);
-        const float railX = b.getX() + b.getWidth() * 0.07f;
-        const float railW = b.getWidth() * 0.70f;
-        const float railY = b.getY() + b.getHeight() * 0.35f;
+        const float railH = juce::jmax(12.0f, b.getHeight() * 0.22f);
+        const float railX = b.getX() + b.getWidth() * 0.06f;
+        const float railW = b.getWidth() * 0.72f;
+        const float railY = b.getY() + b.getHeight() * 0.36f;
         auto rail = juce::Rectangle<float>(railX, railY, railW, railH);
         const float railCorner = railH * 0.5f;
 
-        g.setColour(juce::Colours::black.withAlpha(0.20f));
-        g.fillRoundedRectangle(rail.translated(1.0f, 1.5f), railCorner);
-        g.setColour(juce::Colour(0xFF0F1012));
+        // Inset shadow (dark below-right)
+        g.setColour(juce::Colours::black.withAlpha(0.35f));
+        g.fillRoundedRectangle(rail.translated(1.5f, 1.5f), railCorner);
+        // Cutout fill — exact CSS: #0F0F11
+        g.setColour(juce::Colour(0xFF0F0F11));
         g.fillRoundedRectangle(rail, railCorner);
-        g.setColour(juce::Colours::white.withAlpha(0.18f));
+        // Border — CSS: 1px solid rgba(255,255,255,0.51)
+        g.setColour(juce::Colours::white.withAlpha(0.25f));
         g.drawRoundedRectangle(rail.reduced(0.5f), railCorner, 1.0f);
+        // Inset shadow top-left
+        g.setColour(juce::Colours::black.withAlpha(0.50f));
+        {
+            juce::Path insetShadow;
+            insetShadow.addRoundedRectangle(rail.getX() + 1.0f, rail.getY() + 1.0f,
+                                             rail.getWidth() * 0.5f, railH * 0.6f, railCorner * 0.8f);
+            g.fillPath(insetShadow);
+        }
 
         const float minCx = rail.getX() + railCorner;
         const float maxCx = rail.getRight() - railCorner;
@@ -185,29 +198,45 @@ void UnisonLookAndFeel::drawLinearSlider(juce::Graphics& g,
         auto thumbBounds = juce::Rectangle<float>(cx - thumbD * 0.5f,
                                                   rail.getCentreY() - thumbD * 0.5f,
                                                   thumbD, thumbD);
-        // Shadow
-        g.setColour(juce::Colours::black.withAlpha(0.30f));
-        g.fillEllipse(thumbBounds.translated(2.0f, 3.0f).expanded(1.0f));
+        // Shadow layers (matching CSS drop shadows)
+        g.setColour(juce::Colours::black.withAlpha(0.25f));
+        g.fillEllipse(thumbBounds.translated(2.5f, 3.5f).expanded(2.0f));
+        g.setColour(juce::Colours::black.withAlpha(0.15f));
+        g.fillEllipse(thumbBounds.translated(1.5f, 2.0f).expanded(1.0f));
 
-        // Body gradient
-        juce::ColourGradient thumbGrad(juce::Colour(0xFFC8C8CA), thumbBounds.getCentreX(), thumbBounds.getY(),
-                                       juce::Colour(0xFFAAAAAC), thumbBounds.getCentreX(), thumbBounds.getBottom(), false);
-        thumbGrad.addColour(0.5, juce::Colour(0xFFBCBCBE));
+        // Body gradient — CSS: linear-gradient(180deg, #BBBBBD→#B1B1B3)
+        juce::ColourGradient thumbGrad(juce::Colour(0xFFBBBBBD), thumbBounds.getCentreX(), thumbBounds.getY(),
+                                       juce::Colour(0xFFB1B1B3), thumbBounds.getCentreX(), thumbBounds.getBottom(), false);
         g.setGradientFill(thumbGrad);
         g.fillEllipse(thumbBounds);
 
-        // Outer chamfer
-        g.setColour(juce::Colour(0xFF606062));
-        g.drawEllipse(thumbBounds.reduced(0.5f), 1.0f);
+        // Chamfer ring
+        g.setColour(juce::Colour(0xFFB0B0B2));
+        g.drawEllipse(thumbBounds.reduced(0.5f), 1.2f);
 
-        // Top surface specular
-        auto topSurf = thumbBounds.reduced(thumbD * 0.18f);
-        juce::ColourGradient surfGrad(juce::Colour(0xFFD2D2D4), topSurf.getCentreX(), topSurf.getY(),
-                                      juce::Colour(0xFFBBBBBD), topSurf.getCentreX(), topSurf.getBottom(), false);
+        // Top surface — CSS: slightly brighter inner dome
+        auto topSurf = thumbBounds.reduced(thumbD * 0.14f);
+        juce::ColourGradient surfGrad(juce::Colour(0xFFCACACE), topSurf.getCentreX(), topSurf.getY(),
+                                      juce::Colour(0xFFB8B8BC), topSurf.getCentreX(), topSurf.getBottom(), false);
         g.setGradientFill(surfGrad);
         g.fillEllipse(topSurf);
-        g.setColour(juce::Colours::white.withAlpha(0.50f));
-        g.drawEllipse(topSurf.reduced(1.0f).translated(-0.5f, -0.5f), 1.0f);
+        // Highlight arc
+        g.setColour(juce::Colours::white.withAlpha(0.38f));
+        {
+            juce::Path hl;
+            hl.addArc(topSurf.getX(), topSurf.getY(), topSurf.getWidth(), topSurf.getHeight(),
+                      -juce::MathConstants<float>::pi * 0.85f,
+                      juce::MathConstants<float>::pi * 0.12f, true);
+            g.strokePath(hl, juce::PathStrokeType(juce::jmax(0.8f, thumbD * 0.022f)));
+        }
+        g.setColour(juce::Colours::black.withAlpha(0.18f));
+        {
+            juce::Path sh;
+            sh.addArc(topSurf.getX(), topSurf.getY(), topSurf.getWidth(), topSurf.getHeight(),
+                      juce::MathConstants<float>::pi * 0.15f,
+                      juce::MathConstants<float>::pi * 0.85f, true);
+            g.strokePath(sh, juce::PathStrokeType(juce::jmax(0.6f, thumbD * 0.016f)));
+        }
 
         return;
     }
@@ -219,97 +248,162 @@ void UnisonLookAndFeel::drawLinearSlider(juce::Graphics& g,
 
     if (isSmallFader)
     {
-        // Distortion slider — small metallic pill
+        // Distortion slider — small silver knob matching CSS specs
+        // CSS: 63px outer Thin Button, 45px inner Top
         const float thumbSize = juce::jmax(18.0f, b.getWidth() * 1.20f);
         const float endPad = thumbSize * 0.34f;
         const float cy = juce::jlimit(b.getY() + endPad, b.getBottom() - endPad, sliderPos);
         auto thumbBounds = juce::Rectangle<float>(b.getCentreX() - thumbSize * 0.5f,
                                                   cy - thumbSize * 0.5f,
                                                   thumbSize, thumbSize);
-        // Shadow
-        g.setColour(juce::Colours::black.withAlpha(0.32f));
-        g.fillEllipse(thumbBounds.translated(1.5f, 2.5f).expanded(1.0f));
+        // Multi-layer shadows (CSS: 3 shadow divs)
+        g.setColour(juce::Colours::black.withAlpha(0.08f));
+        g.fillEllipse(thumbBounds.translated(thumbSize * 0.08f, thumbSize * 0.14f).expanded(thumbSize * 0.10f));
+        g.setColour(juce::Colours::black.withAlpha(0.10f));
+        g.fillEllipse(thumbBounds.translated(thumbSize * 0.06f, thumbSize * 0.10f).expanded(thumbSize * 0.05f));
+        g.setColour(juce::Colours::black.withAlpha(0.42f));
+        g.fillEllipse(thumbBounds.translated(thumbSize * 0.04f, thumbSize * 0.06f));
 
-        // Chamfer border
-        g.setColour(juce::Colour(0xFF565658));
+        // Body — CSS: linear-gradient(180deg, #BBBBBD→#B1B1B3)
+        juce::ColourGradient bodyGrad(juce::Colour(0xFFBBBBBD), thumbBounds.getCentreX(), thumbBounds.getY(),
+                                      juce::Colour(0xFFB1B1B3), thumbBounds.getCentreX(), thumbBounds.getBottom(), false);
+        g.setGradientFill(bodyGrad);
         g.fillEllipse(thumbBounds);
 
-        // Body
-        juce::ColourGradient bodyGrad(juce::Colour(0xFFC8C8CA), thumbBounds.getCentreX(), thumbBounds.getY(),
-                                      juce::Colour(0xFFAAAAAC), thumbBounds.getCentreX(), thumbBounds.getBottom(), false);
-        g.setGradientFill(bodyGrad);
-        g.fillEllipse(thumbBounds.reduced(1.5f));
+        // Chamfer ring border
+        g.setColour(juce::Colour(0xFFB0B0B2));
+        g.drawEllipse(thumbBounds.reduced(0.5f), juce::jmax(0.8f, thumbSize * 0.012f));
 
-        // Top surface
-        auto topThumb = thumbBounds.reduced(thumbSize * 0.16f);
-        juce::ColourGradient tGrad(juce::Colour(0xFFCECED0), topThumb.getCentreX(), topThumb.getY(),
-                                   juce::Colour(0xFFB4B4B6), topThumb.getCentreX(), topThumb.getBottom(), false);
+        // Top surface — CSS: inner dome with highlight
+        auto topThumb = thumbBounds.reduced(thumbSize * 0.143f);  // 45/63 ratio
+        juce::ColourGradient tGrad(juce::Colour(0xFFCACACE), topThumb.getCentreX(), topThumb.getY(),
+                                   juce::Colour(0xFFB8B8BC), topThumb.getCentreX(), topThumb.getBottom(), false);
         g.setGradientFill(tGrad);
         g.fillEllipse(topThumb);
-        g.setColour(juce::Colours::white.withAlpha(0.48f));
-        g.drawEllipse(topThumb.reduced(1.0f).translated(-0.5f, -0.5f), 1.0f);
+
+        // Highlight arc (CSS: -1px -1px 2px rgba(255,255,255,0.7))
+        g.setColour(juce::Colours::white.withAlpha(0.36f));
+        {
+            juce::Path hlArc;
+            hlArc.addArc(topThumb.getX(), topThumb.getY(), topThumb.getWidth(), topThumb.getHeight(),
+                         -juce::MathConstants<float>::pi * 0.85f,
+                         juce::MathConstants<float>::pi * 0.12f, true);
+            g.strokePath(hlArc, juce::PathStrokeType(juce::jmax(0.7f, thumbSize * 0.016f)));
+        }
+        // Shadow arc (CSS: 2px 2px 2px rgba(0,0,0,0.37))
+        g.setColour(juce::Colours::black.withAlpha(0.20f));
+        {
+            juce::Path shArc;
+            shArc.addArc(topThumb.getX(), topThumb.getY(), topThumb.getWidth(), topThumb.getHeight(),
+                         juce::MathConstants<float>::pi * 0.15f,
+                         juce::MathConstants<float>::pi * 0.85f, true);
+            g.strokePath(shArc, juce::PathStrokeType(juce::jmax(0.5f, thumbSize * 0.012f)));
+        }
     }
     else
     {
         // Input/Output gain slider — large green metallic puck
+        // CSS: 108.9px outer, conic-gradient chamfer, 77.78px green top
         const float thumbSize = juce::jmax(28.0f, b.getWidth() * 1.55f);
         const float endPad = thumbSize * 0.44f;
         const float cy = juce::jlimit(b.getY() + endPad, b.getBottom() - endPad, sliderPos);
         auto thumbBounds = juce::Rectangle<float>(b.getCentreX() - thumbSize * 0.5f,
                                                   cy - thumbSize * 0.5f,
                                                   thumbSize, thumbSize);
-        // Layered shadow
-        g.setColour(juce::Colours::black.withAlpha(0.28f));
-        g.fillEllipse(thumbBounds.translated(3.0f, 5.0f).expanded(3.0f));
-        g.setColour(juce::Colours::black.withAlpha(0.15f));
-        g.fillEllipse(thumbBounds.translated(1.5f, 2.5f).expanded(1.5f));
+        // Multi-layer shadows (CSS: 3 shadow divs at rotate(30deg))
+        g.setColour(juce::Colours::black.withAlpha(0.08f));
+        g.fillEllipse(thumbBounds.translated(thumbSize * 0.10f, thumbSize * 0.16f)
+                                 .withSizeKeepingCentre(thumbSize * 1.20f, thumbSize * 0.58f));
+        g.setColour(juce::Colours::black.withAlpha(0.10f));
+        g.fillEllipse(thumbBounds.translated(thumbSize * 0.08f, thumbSize * 0.12f)
+                                 .withSizeKeepingCentre(thumbSize * 1.06f, thumbSize * 0.54f));
+        g.setColour(juce::Colours::black.withAlpha(0.50f));
+        g.fillEllipse(thumbBounds.translated(thumbSize * 0.04f, thumbSize * 0.08f)
+                                 .withSizeKeepingCentre(thumbSize * 0.82f, thumbSize * 0.46f));
 
-        // Outer chamfer (dark border)
-        g.setColour(juce::Colour(0xFF1E6640));
+        // Green body — CSS: #43A464
+        g.setColour(juce::Colour(0xFF43A464));
         g.fillEllipse(thumbBounds);
 
-        // Green body gradient
-        juce::ColourGradient chamferGrad(juce::Colour(0xFF8ED4A6), thumbBounds.getX(), thumbBounds.getY(),
-                                         juce::Colour(0xFF256B40), thumbBounds.getRight(), thumbBounds.getBottom(), false);
-        chamferGrad.addColour(0.25, juce::Colour(0xFF52B876));
-        chamferGrad.addColour(0.55, juce::Colour(0xFF3EA062));
-        chamferGrad.addColour(0.80, juce::Colour(0xFF3A9A5C));
-        g.setGradientFill(chamferGrad);
-        g.fillEllipse(thumbBounds.reduced(1.5f));
+        // Chamfer ring — simulated conic-gradient
+        {
+            const float chamR = thumbSize * 0.5f;
+            const float innerChamR = chamR * 0.86f;
+            const float tcx = thumbBounds.getCentreX();
+            const float tcy = thumbBounds.getCentreY();
+            const int segments = 48;
+            const std::array<std::pair<float, juce::Colour>, 7> stops = {{
+                { -14.51f / 360.0f, juce::Colour(0xFF90D9A9) },
+                {  13.51f / 360.0f, juce::Colour(0xFF58C07C) },
+                {  90.41f / 360.0f, juce::Colour(0xFF33824E) },
+                { 236.97f / 360.0f, juce::Colour(0xFF43A464) },
+                { 264.79f / 360.0f, juce::Colour(0xFF4CAE6E) },
+                { 345.49f / 360.0f, juce::Colour(0xFF90D9A9) },
+                { 373.51f / 360.0f, juce::Colour(0xFF58C07C) }
+            }};
+            for (int i = 0; i < segments; ++i)
+            {
+                float a0 = juce::MathConstants<float>::twoPi * (float)i / (float)segments;
+                float a1 = juce::MathConstants<float>::twoPi * (float)(i + 1) / (float)segments;
+                float normA = (float)i / (float)segments;
+                juce::Colour col = stops.back().second;
+                for (size_t si = 0; si + 1 < stops.size(); ++si)
+                {
+                    if (normA >= stops[si].first && normA < stops[si + 1].first)
+                    {
+                        float t = (normA - stops[si].first) / (stops[si + 1].first - stops[si].first);
+                        col = stops[si].second.interpolatedWith(stops[si + 1].second, t);
+                        break;
+                    }
+                }
+                juce::Path seg;
+                seg.addArc(tcx - chamR, tcy - chamR, chamR * 2.0f, chamR * 2.0f, a0, a1, true);
+                seg.addArc(tcx - innerChamR, tcy - innerChamR, innerChamR * 2.0f, innerChamR * 2.0f, a1, a0, false);
+                seg.closeSubPath();
+                g.setColour(col);
+                g.fillPath(seg);
+            }
+        }
 
-        // Top surface
-        auto topSurface = thumbBounds.reduced(thumbSize * 0.16f);
-        juce::ColourGradient surfGrad(juce::Colour(0xFF4AB870), topSurface.getCentreX(), topSurface.getY(),
-                                      juce::Colour(0xFF318050), topSurface.getCentreX(), topSurface.getBottom(), false);
-        g.setGradientFill(surfGrad);
-        g.fillEllipse(topSurface);
+        // Top surface — CSS: #43A464 with lighting
+        const float topRatio = 77.78f / 108.9f;
+        auto topSurface = thumbBounds.withSizeKeepingCentre(thumbSize * topRatio, thumbSize * topRatio);
+        {
+            juce::ColourGradient surfGrad(juce::Colour(0xFF4DB873), topSurface.getCentreX(), topSurface.getY(),
+                                          juce::Colour(0xFF3A9A5C), topSurface.getCentreX(), topSurface.getBottom(), false);
+            surfGrad.addColour(0.50, juce::Colour(0xFF43A464));
+            g.setGradientFill(surfGrad);
+            g.fillEllipse(topSurface);
+        }
 
-        // Specular highlight arc
-        g.setColour(juce::Colours::white.withAlpha(0.35f));
+        // Highlight arc (CSS: -1.72849px -1.72849px 3.45699px rgba(81,97,97,0.7))
+        g.setColour(juce::Colours::white.withAlpha(0.26f));
         {
             juce::Path hl;
             hl.addArc(topSurface.getX(), topSurface.getY(),
                       topSurface.getWidth(), topSurface.getHeight(),
-                      -juce::MathConstants<float>::pi * 0.75f,
-                      juce::MathConstants<float>::pi * 0.05f, true);
-            g.strokePath(hl, juce::PathStrokeType(1.8f));
+                      -juce::MathConstants<float>::pi * 0.85f,
+                      juce::MathConstants<float>::pi * 0.15f, true);
+            g.strokePath(hl, juce::PathStrokeType(juce::jmax(1.0f, thumbSize * 0.016f)));
         }
-        g.setColour(juce::Colours::black.withAlpha(0.22f));
+        // Shadow arc
+        g.setColour(juce::Colours::black.withAlpha(0.24f));
         {
             juce::Path sh;
             sh.addArc(topSurface.getX(), topSurface.getY(),
                       topSurface.getWidth(), topSurface.getHeight(),
-                      juce::MathConstants<float>::pi * 0.25f,
+                      juce::MathConstants<float>::pi * 0.15f,
                       juce::MathConstants<float>::pi * 0.95f, true);
-            g.strokePath(sh, juce::PathStrokeType(1.8f));
+            g.strokePath(sh, juce::PathStrokeType(juce::jmax(0.8f, thumbSize * 0.012f)));
         }
 
-        // Centre dot
-        const float dotR = topSurface.getWidth() * 0.10f;
-        g.setColour(juce::Colour(0xFF1A5A35));
-        g.fillEllipse(topSurface.getCentreX() - dotR, topSurface.getCentreY() - dotR, dotR * 2.0f, dotR * 2.0f);
-        g.setColour(juce::Colours::white.withAlpha(0.30f));
-        g.fillEllipse(topSurface.getCentreX() - dotR * 0.4f, topSurface.getCentreY() - dotR * 0.5f, dotR * 0.7f, dotR * 0.5f);
+        // Inset white glow
+        g.setColour(juce::Colours::white.withAlpha(0.15f));
+        g.drawEllipse(topSurface.reduced(topSurface.getWidth() * 0.06f), juce::jmax(0.5f, thumbSize * 0.007f));
+
+        // Outer border
+        g.setColour(juce::Colours::black.withAlpha(0.12f));
+        g.drawEllipse(thumbBounds.reduced(thumbBounds.getWidth() * 0.005f), juce::jmax(0.6f, thumbSize * 0.010f));
     }
 }
 

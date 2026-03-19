@@ -17,7 +17,8 @@ juce_add_binary_data(ThreeVoicesAssets
         menu_guitar.png
         menu_keys_synth.png
         menu_bass.png
-        menu_vocals.png)
+        menu_vocals.png
+        clean_up.png)
 
 juce_add_plugin(ThreeVoices
     COMPANY_NAME "YourCompany"
